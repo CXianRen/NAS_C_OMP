@@ -1,3 +1,5 @@
 
 # caches
 .ccls-cache
+/.build/
+/bin/

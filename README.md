@@ -1,15 +1,32 @@
 # NAS Parallel Benchmarks
 
-This repo contains the source code for the [NAS][1] Parallel Benchmarks [implemented in C][2].
-Currently, this includes the serial and OMP parallel versions.
+This repository contains the OpenMP C implementation of the [NAS Parallel
+Benchmarks][1]. It is based on the [compor/SNU_NPB repository][2], with the
+serial implementation removed.
 
-The main modifications performed in preparation for usage with [this][3] build harness were:
+The benchmark sources remain organized under `NPB3.3-OMP-C/<BENCHMARK>/src`.
+A standalone GNU Makefile has been reintroduced at the repository root, so an
+external build harness is no longer required.
 
--   move each program source to a `src` subdirectory
--   remove existing build files (for `make` and `cmake`)
+## Build
+
+Build every benchmark for Classes S, W, A, and B:
+
+```sh
+make -j
+```
+
+Select benchmarks and classes explicitly:
+
+```sh
+make -j BENCHMARKS="CG MG" CLASSES="S A C D"
+make BENCHMARKS=CG CLASS=D
+```
+
+Binaries are written to `bin/` as `<BENCHMARK>.<CLASS>`, for example
+`bin/CG.S`. Unsupported benchmark/class combinations are rejected. Remove all
+generated files with `make clean`.
 
 [1]: www.nas.nasa.gov/publications/npb.html
 
-[2]: http://aces.snu.ac.kr/software/snu-npb/
-
-[3]: https://github.com/compor/nauseous
+[2]: https://github.com/compor/SNU_NPB/tree/master

@@ -44,6 +44,7 @@
 #endif
 
 #include "globals.h"
+#include "otter_tuner.h"
 #include "randdp.h"
 #include "timers.h"
 #include "print_results.h"
@@ -109,6 +110,7 @@ int main()
   int i;
   char *t_names[T_last];
   double tmax;
+  otter_tuner *tuner = otter_tuner_create("MG");
 
   for (i = T_init; i < T_last; i++) {
     timer_clear(i);
@@ -282,13 +284,22 @@ int main()
     if ((it == 1) || (it == nit) || ((it % 5) == 0)) {
       printf("  iter %3d\n", it);
     }
+
+    otter_tuner_begin_iteration(tuner, it);
+
     if (timeron) timer_start(T_mg3P);
     mg3P(u, v, r, a, c, n1, n2, n3);
     if (timeron) timer_stop(T_mg3P);
     if (timeron) timer_start(T_resid2);
     resid(u, v, r, n1, n2, n3, a, k);
     if (timeron) timer_stop(T_resid2);
+
+    otter_tuner_end_iteration(tuner);
   }
+
+  timer_stop(T_bench);
+  otter_tuner_destroy(tuner);
+  timer_start(T_bench);
 
   norm2u3(r, n1, n2, n3, &rnm2, &rnmu, nx[lt], ny[lt], nz[lt]);
 

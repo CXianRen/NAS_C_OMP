@@ -44,6 +44,7 @@
 #endif
 
 #include "globals.h"
+#include "otter_tuner.h"
 #include "randdp.h"
 #include "timers.h"
 #include "print_results.h"
@@ -153,6 +154,7 @@ int main(int argc, char *argv[])
   double zeta_verify_value, epsilon, err;
 
   char *t_names[T_last];
+  otter_tuner *tuner = otter_tuner_create("CG");
 
   for (i = 0; i < T_last; i++) {
     timer_clear(i);
@@ -333,6 +335,8 @@ int main(int argc, char *argv[])
   //---->
   //---------------------------------------------------------------------
   for (it = 1; it <= num_iterations; it++) {
+    otter_tuner_begin_iteration(tuner, it);
+
     //---------------------------------------------------------------------
     // The call to the conjugate gradient routine:
     //---------------------------------------------------------------------
@@ -358,9 +362,6 @@ int main(int argc, char *argv[])
     norm_temp2 = 1.0 / sqrt(norm_temp2);
 
     zeta = SHIFT + 1.0 / norm_temp1;
-    if (it == 1) 
-      printf("\n   iteration           ||r||                 zeta\n");
-    printf("    %5d       %20.14E%20.13f\n", it, rnorm, zeta);
 
     //---------------------------------------------------------------------
     // Normalize z to obtain x
@@ -369,9 +370,16 @@ int main(int argc, char *argv[])
     for (j = 0; j < lastcol - firstcol + 1; j++) {
       x[j] = norm_temp2 * z[j];
     }
+
+    otter_tuner_end_iteration(tuner);
+
+    if (it == 1)
+      printf("\n   iteration           ||r||                 zeta\n");
+    printf("    %5d       %20.14E%20.13f\n", it, rnorm, zeta);
   } // end of main iter inv pow meth
 
   timer_stop(T_bench);
+  otter_tuner_destroy(tuner);
 
   //---------------------------------------------------------------------
   // End of timed section

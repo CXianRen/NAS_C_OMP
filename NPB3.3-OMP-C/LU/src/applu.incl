@@ -11,6 +11,7 @@
 
 #include "npbparams.h"
 #include "type.h"
+#include "otter_tuner.h"
 
 //---------------------------------------------------------------------
 // parameters which can be overridden in runtime config file
@@ -143,7 +144,7 @@ void setbv();
 void exact(int i, int j, int k, double u000ijk[]);
 void setiv();
 void erhs();
-void ssor(int niter);
+void ssor(int niter, otter_tuner *tuner);
 void rhs();
 void l2norm (int ldx, int ldy, int ldz, int nx0, int ny0, int nz0,
      int ist, int iend, int jst, int jend,

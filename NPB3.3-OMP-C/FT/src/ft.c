@@ -44,6 +44,7 @@
 #endif
 
 #include "global.h"
+#include "otter_tuner.h"
 #include "randdp.h"
 #include "timers.h"
 #include "print_results.h"
@@ -111,6 +112,7 @@ int main(int argc, char *argv[])
   double total_time, mflops;
   logical verified;
   char Class;
+  otter_tuner *tuner = otter_tuner_create("FT");
 
   //---------------------------------------------------------------------
   // Run the entire problem once to make sure all data is touched. 
@@ -150,6 +152,8 @@ int main(int argc, char *argv[])
   if (timers_enabled) timer_stop(T_fft);
 
   for (iter = 1; iter <= niter; iter++) {
+    otter_tuner_begin_iteration(tuner, iter);
+
     if (timers_enabled) timer_start(T_evolve);
     evolve(u0, u1, twiddle, dims[0], dims[1], dims[2]);
     if (timers_enabled) timer_stop(T_evolve);
@@ -161,7 +165,16 @@ int main(int argc, char *argv[])
     //checksum(iter, u2, dims[0], dims[1], dims[2]);
     checksum(iter, u1, dims[0], dims[1], dims[2]);
     if (timers_enabled) timer_stop(T_checksum);
+
+    otter_tuner_end_iteration(tuner);
+
+    printf(" T =%5d     Checksum =%22.12E%22.12E\n",
+           iter, sums[iter].real, sums[iter].imag);
   }
+
+  timer_stop(T_total);
+  otter_tuner_destroy(tuner);
+  timer_start(T_total);
 
   verify(NX, NY, NZ, niter, &verified, &Class);
 
@@ -711,7 +724,6 @@ static void checksum(int i, void *ou1, int d1, int d2, int d3)
 
   chk = dcmplx_div2(chk, (double)(NTOTAL));
 
-  printf(" T =%5d     Checksum =%22.12E%22.12E\n", i, chk.real, chk.imag);
   sums[i] = chk;
 }
 

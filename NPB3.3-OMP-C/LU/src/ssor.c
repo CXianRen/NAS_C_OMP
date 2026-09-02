@@ -53,7 +53,7 @@ int mthreadnum, iam;
 // to perform pseudo-time stepping SSOR iterations
 // for five nonlinear pde's.
 //---------------------------------------------------------------------
-void ssor(int niter)
+void ssor(int niter, otter_tuner *tuner)
 {
   //---------------------------------------------------------------------
   // local variables
@@ -128,6 +128,7 @@ void ssor(int niter)
     if ((istep % 20) == 0 || istep == itmax || istep == 1) {
       if (niter > 1) printf(" Time step %4d\n", istep);
     }
+    otter_tuner_begin_iteration(tuner, istep);
 
     //---------------------------------------------------------------------
     // perform SSOR iteration
@@ -295,6 +296,7 @@ void ssor(int niter)
     //---------------------------------------------------------------------
     // check the newton-iteration residuals against the tolerance levels
     //---------------------------------------------------------------------
+    otter_tuner_end_iteration(tuner);
     if ( ( rsdnm[0] < tolrsd[0] ) && ( rsdnm[1] < tolrsd[1] ) &&
          ( rsdnm[2] < tolrsd[2] ) && ( rsdnm[3] < tolrsd[3] ) &&
          ( rsdnm[4] < tolrsd[4] ) ) {
@@ -309,4 +311,3 @@ void ssor(int niter)
   timer_stop(1);
   maxtime = timer_read(1);
 }
-

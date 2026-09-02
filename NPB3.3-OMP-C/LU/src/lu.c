@@ -138,6 +138,7 @@ int main(int argc, char *argv[])
   char Class;
   logical verified;
   double mflops;
+  otter_tuner *tuner;
 
   double t, tmax, trecs[t_last+1];
   int i;
@@ -179,6 +180,7 @@ int main(int argc, char *argv[])
   // set up coefficients
   //---------------------------------------------------------------------
   setcoeff();
+  tuner = otter_tuner_create("LU");
 
   //---------------------------------------------------------------------
   // set the boundary values for dependent variables
@@ -198,7 +200,7 @@ int main(int argc, char *argv[])
   //---------------------------------------------------------------------
   // perform one SSOR iteration to touch all data pages
   //---------------------------------------------------------------------
-  ssor(1);
+  ssor(1, NULL);
 
   //---------------------------------------------------------------------
   // reset the boundary and initial values
@@ -209,7 +211,8 @@ int main(int argc, char *argv[])
   //---------------------------------------------------------------------
   // perform the SSOR iterations
   //---------------------------------------------------------------------
-  ssor(itmax);
+  ssor(itmax, tuner);
+  otter_tuner_destroy(tuner);
 
   //---------------------------------------------------------------------
   // compute the solution error
@@ -264,4 +267,3 @@ int main(int argc, char *argv[])
 
   return 0;
 }
-

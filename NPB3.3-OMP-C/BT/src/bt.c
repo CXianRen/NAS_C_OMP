@@ -43,6 +43,7 @@
 #endif
 
 #include "header.h"
+#include "otter_tuner.h"
 #include "timers.h"
 #include "print_results.h"
 
@@ -104,6 +105,7 @@ int main(int argc, char *argv[])
   logical verified;
   char Class;
   char *t_names[t_last+1];
+  otter_tuner *tuner;
 
   //---------------------------------------------------------------------
   // Root node reads input file (if it exists) else takes
@@ -172,6 +174,7 @@ int main(int argc, char *argv[])
   }
 
   set_constants();
+  tuner = otter_tuner_create("BT");
 
   for (i = 1; i <= t_last; i++) {
     timer_clear(i);
@@ -197,10 +200,13 @@ int main(int argc, char *argv[])
       printf(" Time step %4d\n", step);
     }
 
+    otter_tuner_begin_iteration(tuner, step);
     adi();
+    otter_tuner_end_iteration(tuner);
   }
 
   timer_stop(1);
+  otter_tuner_destroy(tuner);
   tmax = timer_read(1);
 
   verify(niter, &Class, &verified);

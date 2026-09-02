@@ -201,9 +201,18 @@ int main(int argc, char *argv[])
     Class = 'U';
   }
 
+  int num_iterations = NITER;
+  char *env_niter = getenv("NPB_NITER");
+  if (env_niter != NULL && env_niter[0] != '\0') {
+    int parsed_niter = atoi(env_niter);
+    if (parsed_niter > 0) {
+      num_iterations = parsed_niter;
+    }
+  }
+
   printf("\n\n NAS Parallel Benchmarks (NPB3.3-OMP-C) - CG Benchmark\n\n");
   printf(" Size: %11d\n", NA);
-  printf(" Iterations:                  %5d\n", NITER);
+  printf(" Iterations:                  %5d\n", num_iterations);
   printf(" Number of available threads: %5d\n", omp_get_max_threads());
   printf("\n");
 
@@ -323,7 +332,7 @@ int main(int argc, char *argv[])
   // Main Iteration for inverse power method
   //---->
   //---------------------------------------------------------------------
-  for (it = 1; it <= NITER; it++) {
+  for (it = 1; it <= num_iterations; it++) {
     //---------------------------------------------------------------------
     // The call to the conjugate gradient routine:
     //---------------------------------------------------------------------
@@ -393,7 +402,7 @@ int main(int argc, char *argv[])
   }
 
   if (t != 0.0) {
-    mflops = (double)(2*NITER*NA)
+    mflops = 2.0 * (double)num_iterations * (double)NA
                    * (3.0+(double)(NONZER*(NONZER+1))
                      + 25.0*(5.0+(double)(NONZER*(NONZER+1)))
                      + 3.0) / t / 1000000.0;
@@ -402,7 +411,7 @@ int main(int argc, char *argv[])
   }
 
   print_results("CG", Class, NA, 0, 0,
-                NITER, t,
+                num_iterations, t,
                 mflops, "          floating point", 
                 verified, NPBVERSION, COMPILETIME,
                 CS1, CS2, CS3, CS4, CS5, CS6, CS7);
@@ -1012,4 +1021,3 @@ static void vecset(int n, double v[], int iv[], int *nzv, int i, double val)
     *nzv     = *nzv + 1;
   }
 }
-

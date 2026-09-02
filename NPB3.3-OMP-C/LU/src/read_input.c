@@ -104,6 +104,14 @@ void read_input()
     nz0 = ISIZ3;
   }
 
+  char *env_niter = getenv("NPB_NITER");
+  if (env_niter != NULL && env_niter[0] != '\0') {
+    int parsed_niter = atoi(env_niter);
+    if (parsed_niter > 0) {
+      itmax = parsed_niter;
+    }
+  }
+
   //---------------------------------------------------------------------
   // check problem size
   //---------------------------------------------------------------------

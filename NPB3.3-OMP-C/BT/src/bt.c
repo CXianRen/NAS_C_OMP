@@ -149,6 +149,14 @@ int main(int argc, char *argv[])
     grid_points[2] = PROBLEM_SIZE;
   }
 
+  char *env_niter = getenv("NPB_NITER");
+  if (env_niter != NULL && env_niter[0] != '\0') {
+    int parsed_niter = atoi(env_niter);
+    if (parsed_niter > 0) {
+      niter = parsed_niter;
+    }
+  }
+
   printf(" Size: %4dx%4dx%4d\n",
       grid_points[0], grid_points[1], grid_points[2]);
   printf(" Iterations: %4d       dt: %11.7f\n", niter, dt);

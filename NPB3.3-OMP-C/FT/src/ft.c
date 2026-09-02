@@ -318,6 +318,24 @@ static void setup()
   }
 
   niter = NITER_DEFAULT;
+  {
+    const char *env_niter = getenv("NPB_NITER");
+    if (env_niter != NULL && env_niter[0] != '\0') {
+      int parsed_niter = atoi(env_niter);
+      if (parsed_niter > 0) {
+        if (parsed_niter <= NITER_DEFAULT) {
+          niter = parsed_niter;
+        } else {
+          fprintf(stderr,
+                  "Ignoring NPB_NITER=%d: statically allocated FT "
+                  "supports at most %d iterations\n",
+                  parsed_niter, NITER_DEFAULT);
+        }
+      } else {
+        fprintf(stderr, "Ignoring invalid NPB_NITER value: %s\n", env_niter);
+      }
+    }
+  }
 
   printf("\n\n NAS Parallel Benchmarks (NPB3.3-OMP-C) - FT Benchmark\n\n");
   printf(" Size                : %4dx%4dx%4d\n", NX, NY, NZ);
@@ -886,4 +904,3 @@ static void verify(int d1, int d2, int d3, int nt,
   }
   printf(" class = %c\n", *Class);
 }
-

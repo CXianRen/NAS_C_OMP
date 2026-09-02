@@ -231,6 +231,16 @@ int main()
   //  printf("%4d%19.2f%19.2e\n", 0, rnm2, rnmu);
   //  printf(" about to evaluate resid, k=%d\n", k);
 
+  {
+    const char *env_niter = getenv("NPB_NITER");
+    if (env_niter != NULL && env_niter[0] != '\0') {
+      int parsed_niter = atoi(env_niter);
+      if (parsed_niter > 0) {
+        nit = parsed_niter;
+      }
+    }
+  }
+
   printf(" Size: %4dx%4dx%4d  (class %c)\n", nx[lt], ny[lt], nz[lt], Class);
   printf(" Iterations:                  %5d\n", nit);
   printf(" Number of available threads: %5d\n", omp_get_max_threads());
@@ -1298,4 +1308,3 @@ static void zero3(void *oz, int n1, int n2, int n3)
     }
   }
 }
-

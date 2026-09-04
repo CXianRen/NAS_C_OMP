@@ -7,7 +7,7 @@ SHELL = /bin/sh
 BUILD_DIR ?= build
 LULESH_EXEC = $(BUILD_DIR)/lulesh2.0
 
-CC = clang
+CC = clang-18
 CXX = clang++ -DUSE_MPI=0
 
 SOURCES2.0 = \
@@ -16,11 +16,17 @@ SOURCES2.0 = \
 	lulesh-viz.cc \
 	lulesh-util.cc \
 	lulesh-init.cc
-OBJECTS2.0 = $(addprefix $(BUILD_DIR)/,$(SOURCES2.0:.cc=.o))
+OTTER_DIR = ../otter
+OTTER_SOURCE = $(OTTER_DIR)/otter_tuner.c
+OTTER_HEADER = $(OTTER_DIR)/otter_tuner.h
+OBJECTS2.0 = $(addprefix $(BUILD_DIR)/,$(SOURCES2.0:.cc=.o)) \
+	$(BUILD_DIR)/otter_tuner.o
 
 # Default OpenMP flags
-CXXFLAGS = -g -O3 -fopenmp -I. -Wall
+CFLAGS = -g -O3 -fopenmp -I. -I$(OTTER_DIR) -Wall
+CXXFLAGS = -g -O3 -fopenmp -I. -I$(OTTER_DIR) -Wall
 LDFLAGS = -g -O3 -fopenmp
+HWLOC_LIBS = -lhwloc
 
 #Below are reasonable default flags for a serial build
 #CXXFLAGS = -g -O3 -I. -Wall
@@ -43,15 +49,21 @@ LDFLAGS = -g -O3 -fopenmp
 $(BUILD_DIR):
 	@mkdir -p "$@"
 
-$(BUILD_DIR)/%.o: %.cc lulesh.h lulesh_tuple.h | $(BUILD_DIR)
+$(BUILD_DIR)/%.o: %.cc lulesh.h lulesh_tuple.h $(OTTER_HEADER) | $(BUILD_DIR)
 	@echo "Building $<"
 	$(CXX) -c $(CXXFLAGS) -o $@ $<
+
+$(BUILD_DIR)/otter_tuner.o: $(OTTER_SOURCE) $(OTTER_HEADER) | $(BUILD_DIR)
+	@echo "Building $<"
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+.PHONY: all clean tar
 
 all: $(LULESH_EXEC)
 
 $(LULESH_EXEC): $(OBJECTS2.0) | $(BUILD_DIR)
 	@echo "Linking"
-	$(CXX) $(OBJECTS2.0) $(LDFLAGS) -lm -o $@
+	$(CXX) $(OBJECTS2.0) $(LDFLAGS) $(HWLOC_LIBS) -lm -o $@
 
 clean:
 	$(RM) $(OBJECTS2.0) $(LULESH_EXEC)

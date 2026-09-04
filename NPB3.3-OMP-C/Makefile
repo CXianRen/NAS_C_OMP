@@ -1,7 +1,8 @@
 .DEFAULT_GOAL := all
 
 CC := clang
-NPB_DIR := NPB3.3-OMP-C
+NPB_DIR := .
+OTTER_DIR := ../otter
 BUILD_DIR ?= .build
 BIN_DIR ?= bin
 
@@ -12,18 +13,14 @@ NPB_CFLAGS ?= -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864
 NPB_LDFLAGS ?= -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864
 HWLOC_CFLAGS ?=
 HWLOC_LIBS ?= -lhwloc
-OTTER_UT_CFLAGS ?= -O2 -g -fopenmp
-OTTER_UT_LDFLAGS ?= -fopenmp
 
 ALL_BENCHMARKS := BT CG DC EP FT IS LU MG SP UA
 ALL_CLASSES := S W A B C D E
 RAND_BENCHMARKS := BT CG DC EP FT MG
 COMMON_SOURCES := $(addprefix $(NPB_DIR)/common/,c_print_results.c c_timers.c print_results.c wtime.c)
 OTTER_BENCHMARKS := BT CG FT LU MG SP
-OTTER_SOURCE := $(NPB_DIR)/common/otter_tuner.c
-OTTER_HEADER := $(NPB_DIR)/common/otter_tuner.h
-OTTER_UT_SOURCE := tests/otter_tuner_ut.c
-OTTER_UT_BINARY := $(BIN_DIR)/otter_tuner_ut
+OTTER_SOURCE := $(OTTER_DIR)/otter_tuner.c
+OTTER_HEADER := $(OTTER_DIR)/otter_tuner.h
 
 $(foreach b,$(ALL_BENCHMARKS),\
   $(eval $(b)_SOURCES := $(wildcard $(NPB_DIR)/$(b)/src/*.c) $(COMMON_SOURCES) \
@@ -54,18 +51,10 @@ TARGETS := $(foreach b,$(KNOWN_BENCHMARKS),\
 SETPARAMS := $(BUILD_DIR)/setparams
 MAKEDEF := $(BUILD_DIR)/config/make.def
 
-.PHONY: all check clean otter-ut
+.PHONY: all check clean
 
 all: check $(TARGETS)
 $(TARGETS): | check
-
-otter-ut: $(OTTER_UT_BINARY)
-
-$(OTTER_UT_BINARY): $(OTTER_UT_SOURCE) $(OTTER_SOURCE) $(OTTER_HEADER) Makefile
-	@mkdir -p "$(BIN_DIR)"
-	$(CC) $(OTTER_UT_CFLAGS) $(HWLOC_CFLAGS) -I"$(NPB_DIR)/common" \
-		$(OTTER_UT_SOURCE) $(OTTER_SOURCE) -o "$@" \
-		$(OTTER_UT_LDFLAGS) $(HWLOC_LIBS) -lm
 
 check:
 	@test -n "$(strip $(BENCHMARKS))" || { echo "BENCHMARKS must not be empty"; exit 2; }
@@ -91,6 +80,7 @@ $(BIN_DIR)/$(1).$(2): $$($(1)_SOURCES) $$(if $$(filter $(1),$$(OTTER_BENCHMARKS)
 	@cd "$(BUILD_DIR)/$(1).$(2)" && ../setparams "$(1)" "$(2)"
 	$(CC) $(NPB_CFLAGS) $(if $(filter $(1),$(OTTER_BENCHMARKS)),$(HWLOC_CFLAGS)) \
 		-I"$(BUILD_DIR)/$(1).$(2)" -I"$(NPB_DIR)/common" -I"$(NPB_DIR)/$(1)/src" \
+		-I"$(OTTER_DIR)" \
 		$$($(1)_SOURCES) -o "$$@" $(NPB_LDFLAGS) \
 		$(if $(filter $(1),$(OTTER_BENCHMARKS)),$(HWLOC_LIBS)) -lm
 endef

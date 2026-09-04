@@ -210,10 +210,9 @@ for (it = 0; it < iterations; it++) {
 
 ## Implementation
 
-The process above is implemented once in
-`NPB3.3-OMP-C/common/otter_tuner.c`. Each supported benchmark keeps its
-original numerical kernel and only places `begin/end` hooks around one real,
-timed outer iteration:
+The process above is implemented once in `otter/otter_tuner.c`. Each supported
+benchmark keeps its original numerical kernel and only places `begin/end`
+hooks around one real, timed outer iteration:
 
 | Benchmark | Tuned outer iteration |
 | --- | --- |
@@ -222,6 +221,7 @@ timed outer iteration:
 | LU | one SSOR pseudo-time step, including the residual and norm work |
 | MG | one V-cycle plus the following residual calculation |
 | FT | one evolve, inverse FFT, and checksum iteration |
+| LULESH | one physical simulation time step |
 
 `THREAD_TUNING_DONE` is an explicit but instantaneous transition in the C
 state machine. It prepares the first contiguous warm-up immediately instead
@@ -261,14 +261,14 @@ verification).
 Build the six integrated benchmarks, for example:
 
 ```sh
-make -j BENCHMARKS="SP CG LU BT MG FT" CLASS=S
+make -C NPB3.3-OMP-C -j BENCHMARKS="SP CG LU BT MG FT" CLASS=S
 ```
 
 Run with `OMP_PROC_BIND=false` so an OpenMP runtime does not replace Otter's
 placement between parallel regions:
 
 ```sh
-OMP_PROC_BIND=false OTTER_MAX_THREADS=8 ./bin/SP.S
+OMP_PROC_BIND=false OTTER_MAX_THREADS=8 ./NPB3.3-OMP-C/bin/SP.S
 ```
 
 Otter is enabled by default. Useful controls are:
@@ -298,7 +298,7 @@ iteration count may not have a matching reference value.
 
 ## Switching correctness and overhead UT
 
-`tests/otter_tuner_ut.c` drives the real tuner through a deterministic short
+`otter/tests/otter_tuner_ut.c` drives the real tuner through a deterministic short
 state-machine run. For every active iteration it starts a separate OpenMP
 region and checks the actual team size and every worker's Linux affinity against
 Otter's requested CPU. It also requires the thread-count transitions, the
@@ -308,12 +308,12 @@ Otter's requested CPU. It also requires the thread-count transitions, the
 Build and run it with the LLVM OpenMP runtime on the 64-core machine:
 
 ```sh
-make -B otter-ut CC=clang-18
+make -C otter -B
 
 env -u OMP_PLACES -u KMP_AFFINITY -u GOMP_CPU_AFFINITY \
   OMP_PROC_BIND=false OMP_DYNAMIC=false OMP_NUM_THREADS=64 \
   OTTER_MAX_THREADS=64 OTTER_PHYSICAL_CORES=1 \
-  ./bin/otter_tuner_ut --rounds 30 --require-libomp
+  ./otter/build/otter_tuner_ut --rounds 30 --require-libomp
 ```
 
 The test prints the compiler, detected loaded OpenMP runtime, correctness

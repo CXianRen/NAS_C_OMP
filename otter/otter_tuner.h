@@ -1,6 +1,10 @@
 #ifndef OTTER_TUNER_H
 #define OTTER_TUNER_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * Otter owns the policy and measurement state for one benchmark run.
  * Keeping the type opaque makes the benchmark integration a pair of thin
@@ -34,5 +38,9 @@ int otter_tuner_get_status(const otter_tuner *tuner,
                            otter_tuner_status *status);
 int otter_tuner_get_target_cpu(const otter_tuner *tuner, int thread);
 void otter_tuner_destroy(otter_tuner *tuner);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

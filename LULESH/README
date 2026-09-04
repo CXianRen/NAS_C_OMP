@@ -2,3 +2,5 @@ LULESH
 
 Source: https://github.com/llnl/LULESH
 Imported from commit: 3e01c40b3281aadb7f996525cdd4a3354f6d3801
+
+Shared Otter tuner source: ../otter/otter_tuner.c and otter_tuner.h

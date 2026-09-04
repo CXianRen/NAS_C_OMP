@@ -158,6 +158,7 @@ Additional BSD Notice
 #endif
 
 #include "lulesh.h"
+#include "otter_tuner.h"
 
 /* Work Routines */
 
@@ -2729,7 +2730,9 @@ int main(int argc, char *argv[])
    // End initialization
    MPI_Barrier(MPI_COMM_WORLD);
 #endif   
-   
+
+   otter_tuner *tuner = otter_tuner_create("LULESH");
+
    // BEGIN timestep to solution */
 #if USE_MPI   
    double start = MPI_Wtime();
@@ -2742,8 +2745,10 @@ int main(int argc, char *argv[])
 //      std::cout << "region" << i + 1<< "size" << locDom->regElemSize(i) <<std::endl;
    while((locDom->time() < locDom->stoptime()) && (locDom->cycle() < opts.its)) {
 
+      otter_tuner_begin_iteration(tuner, locDom->cycle());
       TimeIncrement(*locDom) ;
       LagrangeLeapFrog(*locDom) ;
+      otter_tuner_end_iteration(tuner);
 
       if ((opts.showProg != 0) && (opts.quiet == 0) && (myRank == 0)) {
          std::cout << "cycle = " << locDom->cycle()       << ", "
@@ -2763,6 +2768,7 @@ int main(int argc, char *argv[])
    gettimeofday(&end, NULL) ;
    elapsed_time = (double)(end.tv_sec - start.tv_sec) + ((double)(end.tv_usec - start.tv_usec))/1000000 ;
 #endif
+   otter_tuner_destroy(tuner);
    double elapsed_timeG;
 #if USE_MPI   
    MPI_Reduce(&elapsed_time, &elapsed_timeG, 1, MPI_DOUBLE,

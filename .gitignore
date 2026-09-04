@@ -1,6 +1,6 @@
 
 # caches
 .ccls-cache
-/.build/
-/bin/
+/NPB3.3-OMP-C/.build/
+/NPB3.3-OMP-C/bin/
 /LULESH/build/

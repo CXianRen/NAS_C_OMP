@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := all
 
 CC := gcc
-NPB_DIR := NPB3.3-OMP-C
+NPB_DIR := .
 BUILD_DIR ?= .build
 BIN_DIR ?= bin
 

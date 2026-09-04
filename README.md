@@ -5,27 +5,27 @@ Benchmarks][1]. It is based on the [compor/SNU_NPB repository][2], with the
 serial implementation removed.
 
 The benchmark sources remain organized under `NPB3.3-OMP-C/<BENCHMARK>/src`.
-A standalone GNU Makefile has been reintroduced at the repository root, so an
-external build harness is no longer required.
+A standalone GNU Makefile is provided inside `NPB3.3-OMP-C`, so an external
+build harness is no longer required.
 
 ## Build
 
 Build every benchmark for Classes S, W, A, and B:
 
 ```sh
-make -j
+make -C NPB3.3-OMP-C -j
 ```
 
 Select benchmarks and classes explicitly:
 
 ```sh
-make -j BENCHMARKS="CG MG" CLASSES="S A C D"
-make BENCHMARKS=CG CLASS=D
+make -C NPB3.3-OMP-C -j BENCHMARKS="CG MG" CLASSES="S A C D"
+make -C NPB3.3-OMP-C BENCHMARKS=CG CLASS=D
 ```
 
-Binaries are written to `bin/` as `<BENCHMARK>.<CLASS>`, for example
-`bin/CG.S`. Unsupported benchmark/class combinations are rejected. Remove all
-generated files with `make clean`.
+Binaries are written to `NPB3.3-OMP-C/bin/` as `<BENCHMARK>.<CLASS>`, for
+example `NPB3.3-OMP-C/bin/CG.S`. Unsupported benchmark/class combinations are
+rejected. Remove all generated files with `./clean.sh`.
 
 [1]: www.nas.nasa.gov/publications/npb.html
 

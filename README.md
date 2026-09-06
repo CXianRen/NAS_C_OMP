@@ -296,29 +296,64 @@ Keep the class's standard iteration count when checking official NPB reference
 values; `NPB_NITER` remains useful for diagnostics but a changed numerical
 iteration count may not have a matching reference value.
 
-## Switching correctness and overhead UT
+## Otter correctness tests and overhead profiling
 
-`otter/tests/otter_tuner_ut.c` drives the real tuner through a deterministic short
-state-machine run. For every active iteration it starts a separate OpenMP
-region and checks the actual team size and every worker's Linux affinity against
-Otter's requested CPU. It also requires the thread-count transitions, the
-`CONTIGUOUS -> SCATTER` transition, final `T_best=floor(T_max/2)`, and final
-`P_best=SCATTER` to occur.
+Otter has two independent correctness tests and a separate overhead profiler.
+The correctness tests include the production implementation to exercise its
+private configuration and search functions without adding public test APIs.
 
-Build and run it with the LLVM OpenMP runtime on the 64-core machine:
+Build all three programs (or use `make -C otter correctness` for just the tests):
 
 ```sh
 make -C otter -B
+```
 
+Run the binding correctness test with LLVM OpenMP on the 64-core machine:
+
+```sh
 env -u OMP_PLACES -u KMP_AFFINITY -u GOMP_CPU_AFFINITY \
   OMP_PROC_BIND=false OMP_DYNAMIC=false OMP_NUM_THREADS=64 \
   OTTER_MAX_THREADS=64 OTTER_PHYSICAL_CORES=1 \
-  ./otter/build/otter_tuner_ut --rounds 30 --require-libomp
+  ./otter/build/otter_tuner_binding_correctness --require-libomp
 ```
 
-The test prints the compiler, detected loaded OpenMP runtime, correctness
-result, and the state/configuration trace for the first round. Later rounds stay
-quiet and contribute only to the statistics. The overhead table reports
+The binding test directly applies a fixed sequence of configurations, without
+running search or measuring workload time. It checks the next ordinary OpenMP
+parallel region (without a `num_threads` clause): default team size, singleton
+CPU affinity, target CPU, and distinct CPUs across workers. The sequence covers
+thread growth/shrinkage in both placements, a single-thread team, both directions
+of `CONTIGUOUS <-> SCATTER`, and repeated configuration application. Destruction
+must restore the OpenMP settings and worker affinity. At least four usable cores
+and working Linux affinity control are required.
+
+Run the search correctness test independently:
+
+```sh
+./otter/build/otter_tuner_search_correctness
+```
+
+The search test uses a virtual thread limit and feeds exact mock metrics directly
+into the production state machine. It never discovers topology, creates OpenMP
+teams, binds threads, sleeps, or measures wall time. It still links the normal
+OpenMP/hwloc libraries because it includes the production implementation.
+Its fixed cases check Newton selection with and without tolerance, flat curves,
+golden-search interior and boundary optima, odd/small thread limits, both
+placement winners and ties, unavailable placement, ignored warmup metrics, and
+terminal-state stability. Golden-search cases use distance 1 for exact integer
+answers; they do not assert exact optima for the coarser production default.
+The expected answers are constants derived from the mock curves, independent
+of the machine's core count and affinity environment.
+
+Run overhead profiling separately:
+
+```sh
+env -u OMP_PLACES -u KMP_AFFINITY -u GOMP_CPU_AFFINITY \
+  OMP_PROC_BIND=false OMP_DYNAMIC=false OMP_NUM_THREADS=64 \
+  OTTER_MAX_THREADS=64 OTTER_PHYSICAL_CORES=1 \
+  ./otter/build/otter_tuner_overhead --rounds 30 --require-libomp
+```
+
+The profiler does not run correctness affinity probes. It reports
 min/p50/p95/mean/max in microseconds (`*_us`) for initialization, unchanged
 `begin`, team growth, team shrink, placement switching, the final apply,
 post-tuning no-op calls, and affinity restoration. These timings measure tuner

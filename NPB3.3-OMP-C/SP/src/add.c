@@ -41,8 +41,6 @@ void add()
 {
   int i, j, k, m;
 
-  if (timeron) timer_start(t_add);
-  NPB_PARALLEL_FOR_BEGIN(R_ADD_PARALLEL)
   #pragma omp parallel for default(shared) private(i,j,k,m)
   for (k = 1; k <= nz2; k++) {
     for (j = 1; j <= ny2; j++) {
@@ -53,7 +51,5 @@ void add()
       }
     }
   }
-  NPB_PARALLEL_FOR_END()
-  if (timeron) timer_stop(t_add);
 }
 

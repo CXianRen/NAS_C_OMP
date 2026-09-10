@@ -41,12 +41,10 @@ void reciprocal(double a[], int n)
 {
   int i;
 
-  NPB_PARALLEL_FOR_BEGIN(R_RECIPROCAL_1)
   #pragma omp parallel for default(shared) private(i)
   for (i = 0; i < n; i++) {
     a[i] = 1.0/a[i];
   }
-  NPB_PARALLEL_FOR_END()
 }
 
 
@@ -57,12 +55,10 @@ void r_init_omp(double a[], int n, double _const)
 {
   int i;
 
-  NPB_PARALLEL_FOR_BEGIN(R_R_INIT_OMP_1)
   #pragma omp parallel for default(shared) private(i)
   for (i = 0; i < n; i++) {
     a[i] = _const;
   }
-  NPB_PARALLEL_FOR_END()
 }
 
 
@@ -86,12 +82,10 @@ void nr_init_omp(int a[], int n, int _const)
 {
   int i;
 
-  NPB_PARALLEL_FOR_BEGIN(R_NR_INIT_OMP_1)
   #pragma omp parallel for default(shared) private(i)
   for (i = 0; i < n; i++) {
     a[i] = _const;
   }
-  NPB_PARALLEL_FOR_END()
 }
 
 
@@ -115,12 +109,10 @@ void l_init_omp(logical a[], int n, logical _const)
 {
   int i;
 
-  NPB_PARALLEL_FOR_BEGIN(R_L_INIT_OMP_1)
   #pragma omp parallel for default(shared) private(i)
   for (i = 0; i < n; i++) {
     a[i] = _const;
   }
-  NPB_PARALLEL_FOR_END()
 }
 
 
@@ -169,12 +161,10 @@ void copy(double a[], double b[], int n)
 void adds2m1(double a[], double b[], double c1, int n)
 {
   int i;
-  NPB_PARALLEL_FOR_BEGIN(R_ADDS2M1_1)
   #pragma omp parallel for default(shared) private(i)
   for (i = 0; i < n; i++) {
     a[i] = a[i]+c1*b[i];
   }
-  NPB_PARALLEL_FOR_END()
 }
 
 
@@ -184,12 +174,10 @@ void adds2m1(double a[], double b[], double c1, int n)
 void adds1m1(double a[], double b[], double c1, int n)
 {
   int i;
-  NPB_PARALLEL_FOR_BEGIN(R_ADDS1M1_1)
   #pragma omp parallel for default(shared) private(i)
   for (i = 0; i < n; i++) {
     a[i] = c1*a[i]+b[i];
   }
-  NPB_PARALLEL_FOR_END()
 }
 
 
@@ -200,12 +188,10 @@ void col2(double a[], double b[], int n)
 {
   int i;
 
-  NPB_PARALLEL_FOR_BEGIN(R_COL2_1)
   #pragma omp parallel for default(shared) private(i)
   for (i = 0; i < n; i++) {
     a[i] = a[i]*b[i];
   }
-  NPB_PARALLEL_FOR_END()
 }
 
 
@@ -228,12 +214,10 @@ void nrzero(int na[], int n)
 void add2(double a[], double b[], int n)
 {
   int i;
-  NPB_PARALLEL_FOR_BEGIN(R_ADD2_1)
   #pragma omp parallel for default(shared) private(i)
   for (i = 0; i < n; i++) {
     a[i] = a[i]+b[i];
   }
-  NPB_PARALLEL_FOR_END()
 }
 
 
@@ -247,7 +231,6 @@ double calc_norm()
 
   total = 0.0;
 
-  NPB_PARALLEL_FOR_BEGIN(R_CALC_NORM_1)
   #pragma omp parallel for default(shared) private(i,j,k,isize,ieltotal,iel) \
                                            reduction(+:total)
   for (iel = 0; iel < nelt; iel++) {
@@ -263,7 +246,6 @@ double calc_norm()
     }
     total = total+ieltotal;
   }
-  NPB_PARALLEL_FOR_END()
 
   return total;
 }
@@ -287,7 +269,6 @@ void parallel_add(int frontier[])
   ntemp = 1;
   for (i = 0; i < nellog; i++) {
     n1 = ntemp*2;
-    NPB_PARALLEL_FOR_BEGIN(R_PARALLEL_ADD_1)
     #pragma omp parallel for default(shared) private(ahead,ii,iel)
     for (iel = n1; iel <= nelt; iel += n1) {
       ahead = frontier[iel-ntemp-1];
@@ -295,18 +276,15 @@ void parallel_add(int frontier[])
         frontier[iel-ii-1] = frontier[iel-ii-1]+ahead;
       }
     }
-    NPB_PARALLEL_FOR_END()
 
     iel = (nelt/n1+1)*n1;
     ntemp1 = iel-nelt;
     if (ntemp1 < ntemp) {
       ahead = frontier[iel-ntemp-1];
-      NPB_PARALLEL_FOR_BEGIN(R_PARALLEL_ADD_2)
       #pragma omp parallel for default(shared) private(ii)
       for (ii = ntemp-1; ii >= ntemp1; ii--) {
         frontier[iel-ii-1] = frontier[iel-ii-1]+ahead;
       }
-      NPB_PARALLEL_FOR_END()
     }
 
     ntemp = n1;

@@ -52,7 +52,6 @@ void jacu(int k)
   c1345 = C1 * C3 * C4 * C5;
   c34 = C3 * C4;
 
-  NPB_FOR_BEGIN(R_JACU_FOR_1)
   #pragma omp for schedule(static) nowait
   for (j = jend - 1; j >= jst; j--) {
     for (i = iend - 1; i >= ist; i--) {
@@ -356,6 +355,5 @@ void jacu(int k)
         - dt * tz1 * dz5;
     }
   }
-  NPB_FOR_END()
 }
 

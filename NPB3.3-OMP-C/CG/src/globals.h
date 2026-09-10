@@ -119,9 +119,3 @@
 
 #define NZ    (NA*(NONZER+1)*(NONZER+1))
 #define NAZ   (NA*(NONZER+1))
-
-#define T_init        0
-#define T_bench       1
-#define T_conj_grad   2
-#define T_last        3
-

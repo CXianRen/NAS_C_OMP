@@ -1,5 +1,4 @@
 #include "region_timers.h"
-#include "timers.h"
 
 #include <assert.h>
 #include <math.h>
@@ -14,9 +13,7 @@ enum {
 static int sum;
 static unsigned clock_calls, worker_clock_calls;
 
-/* The original NAS timers below run only in serial code. Any worker clock
- * read therefore comes from the region API and violates master-only timing.
- */
+/* A worker clock read violates master-only region timing. */
 double __wrap_omp_get_wtime(void)
 {
   if (omp_get_thread_num() != 0) {
@@ -42,7 +39,6 @@ static void work(void)
 
 static void compute(void)
 {
-  timer_start(1);
   NPB_PARALLEL_BEGIN(R_WORK_PARALLEL)
   #pragma omp parallel
   {
@@ -55,7 +51,6 @@ static void compute(void)
     NPB_FOR_END()
   }
   NPB_PARALLEL_END()
-  timer_stop(1);
 }
 
 static void nowait_chain(void)
@@ -73,7 +68,6 @@ static void nowait_chain(void)
 
 static void grouped(void)
 {
-  timer_start(2);
   NPB_PARALLEL_BEGIN(R_GROUPED_PARALLEL)
   #pragma omp parallel
   {
@@ -96,18 +90,15 @@ static void grouped(void)
     nowait_chain();             /* Ends before the parallel join. */
   }
   NPB_PARALLEL_END()
-  timer_stop(2);
 }
 
 static void combined(void)
 {
   int value = 0;
-  timer_start(3);
   NPB_PARALLEL_FOR_BEGIN(R_COMBINED)
   #pragma omp parallel for schedule(static, 2) reduction(+:value)
   for (int i = 0; i < 16; ++i) value += i;
   NPB_PARALLEL_FOR_END()
-  timer_stop(3);
   assert(value == 120);
 }
 
@@ -138,15 +129,12 @@ int main(int argc, char **argv)
   }
   omp_set_dynamic(0);
   omp_set_num_threads(2);
-  timer_clear(0);
-  timer_clear(1);
-  timer_start(0);                 /* Starts before the active windows. */
   before = clock_calls;
   compute();                     /* Warmup: must not increment report. */
   grouped();
   combined();
   excluded();
-  assert(clock_calls - before == 6); /* Only original kernel timers. */
+  assert(clock_calls - before == 0); /* Warmup is outside iteration windows. */
   for (int i = 0; i < 3; ++i) {
     omp_set_num_threads(teams[i]); /* Check shrinking and growing teams. */
     npb_time_begin();
@@ -160,11 +148,11 @@ int main(int argc, char **argv)
   grouped();
   combined();
   excluded();
-  assert(clock_calls - before == 6);
-  timer_stop(0);
+  assert(clock_calls - before == 0);
   assert(sum == 4 + 2 * (2 + 1 + 3) + 6);
   npb_time_report();
   assert(worker_clock_calls == 0);
+  assert(npb_time_total() > 0);
   if (npb_time_enabled()) {
     assert(clock_calls > 32);
     assert(fabs(npb_time_read(R_WORK_FOR) - 0.006) < 1e-10);
@@ -173,7 +161,7 @@ int main(int argc, char **argv)
     assert(fabs(npb_time_read(R_ORDINARY_FOR) - 0.006) < 1e-10);
     assert(fabs(npb_time_read(R_COMBINED) - 0.003) < 1e-10);
   } else {
-    assert(clock_calls == 32);     /* Disabled API does not read the clock. */
+    assert(clock_calls == 6);      /* Only two total timestamps per window. */
     for (int i = 0; i < R_COUNT; ++i) assert(npb_time_read(i) == 0);
   }
   assert(npb_time_read(R_EXCLUDED_PARALLEL) == 0);
@@ -182,15 +170,15 @@ int main(int argc, char **argv)
 }
 
 const npb_region_info npb_regions[] = {
-  [R_WORK_PARALLEL] = {"compute:47", -1, 0},
-  [R_WORK_FOR] = {"work:36", R_WORK_PARALLEL, 0},
-  [R_TAIL_FOR] = {"compute:51-55 (nowait)", R_WORK_PARALLEL, 0},
-  [R_GROUPED_PARALLEL] = {"grouped:78", -1, 0},
-  [R_CHAIN_FOR] = {"nowait_chain:65-71 (nowait)", R_GROUPED_PARALLEL, 0},
-  [R_ORDINARY_FOR] = {"grouped:86", R_GROUPED_PARALLEL, 0},
-  [R_COMBINED] = {"combined:107", -1, 1},
-  [R_EXCLUDED_PARALLEL] = {"excluded:117", -1, 0},
-  [R_EXCLUDED_FOR] = {"excluded:120", R_EXCLUDED_PARALLEL, 0},
+  [R_WORK_PARALLEL] = {"compute:43", -1, 0},
+  [R_WORK_FOR] = {"work:33", R_WORK_PARALLEL, 0},
+  [R_TAIL_FOR] = {"compute:47-51 (nowait)", R_WORK_PARALLEL, 0},
+  [R_GROUPED_PARALLEL] = {"grouped:72", -1, 0},
+  [R_CHAIN_FOR] = {"nowait_chain:60-66 (nowait)", R_GROUPED_PARALLEL, 0},
+  [R_ORDINARY_FOR] = {"grouped:80", R_GROUPED_PARALLEL, 0},
+  [R_COMBINED] = {"combined:99", -1, 1},
+  [R_EXCLUDED_PARALLEL] = {"excluded:108", -1, 0},
+  [R_EXCLUDED_FOR] = {"excluded:111", R_EXCLUDED_PARALLEL, 0},
 };
 
 const int npb_region_count = R_COUNT;

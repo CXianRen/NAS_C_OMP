@@ -45,8 +45,7 @@
 
 #include "globals.h"
 #include "randdp.h"
-#include "timers.h"
-#include "region_info.h"
+#include "region_timers.h"
 #include "print_results.h"
 
 
@@ -98,7 +97,7 @@ int main()
   // and is NOT global. it is the current iteration
   //-------------------------------------------------------------------------c
   int k, it;
-  double t, tinit, mflops;
+  double t, mflops;
 
   double a[4], c[4];
 
@@ -109,17 +108,11 @@ int main()
 
   int i;
 
-  for (i = T_init; i < T_last; i++) {
-    timer_clear(i);
-  }
-
-  timer_start(T_init);
 
   //---------------------------------------------------------------------
   // Read in and broadcast input data
   //---------------------------------------------------------------------
   FILE *fp;
-  timeron = npb_time_enabled();
 
   printf("\n\n NAS Parallel Benchmarks (NPB3.3-OMP-C) - MG Benchmark\n\n");
 
@@ -245,20 +238,8 @@ int main()
   zero3(u, n1, n2, n3);
   zran3(v, n1, n2, n3, nx[lt], ny[lt], k);
 
-  timer_stop(T_init);
-  tinit = timer_read(T_init);
 
-  printf(" Initialization time: %15.3f seconds\n\n", tinit);
-
-  for (i = T_bench; i < T_last; i++) {
-    timer_clear(i);
-  }
-
-  timer_start(T_bench);
-
-  if (timeron) timer_start(T_resid2);
   resid(u, v, r, n1, n2, n3, a, k);
-  if (timeron) timer_stop(T_resid2);
   norm2u3(r, n1, n2, n3, &rnm2, &rnmu, nx[lt], ny[lt], nz[lt]);
   old2 = rnm2;
   oldu = rnmu;
@@ -268,20 +249,15 @@ int main()
     if ((it == 1) || (it == nit) || ((it % 5) == 0)) {
       printf("  iter %3d\n", it);
     }
-    if (timeron) timer_start(T_mg3P);
     mg3P(u, v, r, a, c, n1, n2, n3);
-    if (timeron) timer_stop(T_mg3P);
-    if (timeron) timer_start(T_resid2);
     resid(u, v, r, n1, n2, n3, a, k);
-    if (timeron) timer_stop(T_resid2);
   }
   npb_time_end();
 
   norm2u3(r, n1, n2, n3, &rnm2, &rnmu, nx[lt], ny[lt], nz[lt]);
 
-  timer_stop(T_bench);
 
-  t = timer_read(T_bench);
+  t = npb_time_total();
 
   verified = false;
   verify_value = 0.0;
@@ -475,8 +451,6 @@ static void psinv(void *or, void *ou, int n1, int n2, int n3,
 
   double r1[M], r2[M];
 
-  if (timeron) timer_start(T_psinv);
-  NPB_PARALLEL_FOR_BEGIN(R_PSINV_PARALLEL_FOR_1)
   #pragma omp parallel for default(shared) private(i1,i2,i3,r1,r2)
   for (i3 = 1; i3 < n3-1; i3++) {
     for (i2 = 1; i2 < n2-1; i2++) {
@@ -500,8 +474,6 @@ static void psinv(void *or, void *ou, int n1, int n2, int n3,
       }
     }
   }
-  NPB_PARALLEL_FOR_END()
-  if (timeron) timer_stop(T_psinv);
 
   //---------------------------------------------------------------------
   // exchange boundary points
@@ -540,8 +512,6 @@ static void resid(void *ou, void *ov, void *or, int n1, int n2, int n3,
   int i3, i2, i1;
   double u1[M], u2[M];
 
-  if (timeron) timer_start(T_resid);
-  NPB_PARALLEL_FOR_BEGIN(R_RESID_PARALLEL_FOR_1)
   #pragma omp parallel for default(shared) private(i1,i2,i3,u1,u2)
   for (i3 = 1; i3 < n3-1; i3++) {
     for (i2 = 1; i2 < n2-1; i2++) {
@@ -565,8 +535,6 @@ static void resid(void *ou, void *ov, void *or, int n1, int n2, int n3,
       }
     }
   }
-  NPB_PARALLEL_FOR_END()
-  if (timeron) timer_stop(T_resid);
 
   //---------------------------------------------------------------------
   // exchange boundary data
@@ -602,7 +570,6 @@ static void rprj3(void *or, int m1k, int m2k, int m3k,
 
   double x1[M], y1[M], x2, y2;
 
-  if (timeron) timer_start(T_rprj3);
   if (m1k == 3) {
     d1 = 2;
   } else {
@@ -621,7 +588,6 @@ static void rprj3(void *or, int m1k, int m2k, int m3k,
     d3 = 1;
   }
 
-  NPB_PARALLEL_FOR_BEGIN(R_RPRJ3_PARALLEL_FOR_1)
   #pragma omp parallel for default(shared) \
                            private(j1,j2,j3,i1,i2,i3,x1,y1,x2,y2)
   for (j3 = 1; j3 < m3j-1; j3++) {
@@ -651,8 +617,6 @@ static void rprj3(void *or, int m1k, int m2k, int m3k,
       }
     }
   }
-  NPB_PARALLEL_FOR_END()
-  if (timeron) timer_stop(T_rprj3);
 
   j = k-1;
   comm3(s, m1j, m2j, m3j, j);
@@ -691,9 +655,7 @@ static void interp(void *oz, int mm1, int mm2, int mm3,
   //      parameter( m=535 )
   double z1[M], z2[M], z3[M];
 
-  if (timeron) timer_start(T_interp);
   if (n1 != 3 && n2 != 3 && n3 != 3) {
-    NPB_PARALLEL_FOR_BEGIN(R_INTERP_PARALLEL_FOR_1)
     #pragma omp parallel for default(shared) private(i1,i2,i3,z1,z2,z3)
     for (i3 = 0; i3 < mm3-1; i3++) {
       for (i2 = 0; i2 < mm2-1; i2++) {
@@ -729,7 +691,6 @@ static void interp(void *oz, int mm1, int mm2, int mm3,
         }
       }
     }
-    NPB_PARALLEL_FOR_END()
   } else {
     if (n1 == 3) {
       d1 = 2;
@@ -755,10 +716,8 @@ static void interp(void *oz, int mm1, int mm2, int mm3,
       t3 = 0;
     }
 
-    NPB_PARALLEL_BEGIN(R_INTERP_PARALLEL_1)
     #pragma omp parallel default(shared) private(i1,i2,i3)
     {
-    NPB_FOR_BEGIN(R_INTERP_FOR_1)
     #pragma omp for
     for (i3 = d3; i3 <= mm3-1; i3++) {
       for (i2 = d2; i2 <= mm2-1; i2++) {
@@ -787,9 +746,7 @@ static void interp(void *oz, int mm1, int mm2, int mm3,
         }
       }
     }
-    NPB_FOR_END()
 
-    NPB_FOR_BEGIN(R_INTERP_FOR_2)
     #pragma omp for nowait
     for (i3 = 1; i3 <= mm3-1; i3++) {
       for (i2 = d2; i2 <= mm2-1; i2++) {
@@ -822,11 +779,8 @@ static void interp(void *oz, int mm1, int mm2, int mm3,
         }
       }
     }
-    NPB_FOR_END()
     } // end parallel
-    NPB_PARALLEL_END()
   }
-  if (timeron) timer_stop(T_interp);
 
   if (debug_vec[0] >= 1) {
     rep_nrm(z, mm1, mm2, mm3, "z: inter", k-1);
@@ -858,16 +812,13 @@ static void norm2u3(void *or, int n1, int n2, int n3,
 
   double dn, max_rnmu;
 
-  if (timeron) timer_start(T_norm2);
   dn = 1.0*nx*ny*nz;
 
   s = 0.0;
   max_rnmu = 0.0;
-  NPB_PARALLEL_BEGIN(R_NORM2U3_PARALLEL_1)
   #pragma omp parallel default(shared) private(i1,i2,i3,a) reduction(+:s)
   {
     double my_rnmu = 0.0;
-    NPB_FOR_BEGIN(R_NORM2U3_FOR_1)
     #pragma omp for nowait
     for (i3 = 1; i3 < n3-1; i3++) {
       for (i2 = 1; i2 < n2-1; i2++) {
@@ -878,19 +829,16 @@ static void norm2u3(void *or, int n1, int n2, int n3,
         }
       }
     }
-    NPB_FOR_END()
 
     if (my_rnmu > max_rnmu) {
       #pragma omp critical
       max_rnmu = (my_rnmu > max_rnmu) ? my_rnmu : max_rnmu;
     }
   } // end parallel
-  NPB_PARALLEL_END()
 
   *rnmu = max_rnmu;
 
   *rnm2 = sqrt(s / dn);
-  if (timeron) timer_stop(T_norm2);
 }
 
 
@@ -915,11 +863,8 @@ static void comm3(void *ou, int n1, int n2, int n3, int kk)
 
   int i1, i2, i3;
 
-  if (timeron) timer_start(T_comm3);
-  NPB_PARALLEL_BEGIN(R_COMM3_PARALLEL_1)
   #pragma omp parallel default(shared) private(i1,i2,i3)
   {
-  NPB_FOR_BEGIN(R_COMM3_FOR_1)
   #pragma omp for
   for (i3 = 1; i3 < n3-1; i3++) {
     for (i2 = 1; i2 < n2-1; i2++) {
@@ -934,9 +879,7 @@ static void comm3(void *ou, int n1, int n2, int n3, int kk)
       u[i3][n2-1][i1] = u[i3][   1][i1];
     }
   }
-  NPB_FOR_END()
 
-  NPB_FOR_BEGIN(R_COMM3_FOR_2)
   #pragma omp for nowait
   for (i2 = 0; i2 < n2; i2++) {
     for (i1 = 0; i1 < n1; i1++) {
@@ -944,10 +887,7 @@ static void comm3(void *ou, int n1, int n2, int n3, int kk)
       u[n3-1][i2][i1] = u[   1][i2][i1];
     }
   }
-  NPB_FOR_END()
   } // end parallel
-  NPB_PARALLEL_END()
-  if (timeron) timer_stop(T_comm3);
 }
 
 
@@ -1293,7 +1233,6 @@ static void zero3(void *oz, int n1, int n2, int n3)
 
   int i1, i2, i3;
 
-  NPB_PARALLEL_FOR_BEGIN(R_ZERO3_PARALLEL_FOR_1)
   #pragma omp parallel for default(shared) private(i1,i2,i3)
   for (i3 = 0; i3 < n3; i3++) {
     for (i2 = 0; i2 < n2; i2++) {
@@ -1302,5 +1241,4 @@ static void zero3(void *oz, int n1, int n2, int n3)
       }
     }
   }
-  NPB_PARALLEL_FOR_END()
 }

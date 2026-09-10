@@ -37,7 +37,6 @@
 #include <omp.h>
 #endif
 #include "applu.incl"
-#include "timers.h"
 
 //---------------------------------------------------------------------
 // Thread synchronization for pipeline operation
@@ -101,9 +100,6 @@ void ssor(int niter, logical timed_iterations)
     }
   }
   } //end parallel
-  for (i = 1; i <= t_last; i++) {
-    timer_clear(i);
-  }
 
   //---------------------------------------------------------------------
   // compute the steady-state residuals
@@ -116,11 +112,7 @@ void ssor(int niter, logical timed_iterations)
   l2norm( ISIZ1, ISIZ2, ISIZ3, nx0, ny0, nz0,
           ist, iend, jst, jend, rsd, rsdnm );
 
-  for (i = 1; i <= t_last; i++) {
-    timer_clear(i);
-  }
   if (timed_iterations) npb_time_begin();
-  timer_start(1);
 
   //---------------------------------------------------------------------
   // the timestep loop
@@ -133,14 +125,10 @@ void ssor(int niter, logical timed_iterations)
     //---------------------------------------------------------------------
     // perform SSOR iteration
     //---------------------------------------------------------------------
-    NPB_PARALLEL_BEGIN(R_SSOR_PARALLEL)
     #pragma omp parallel default(shared) private(i,j,k,m,tmp2) \
                 shared(ist,iend,jst,jend,nx,ny,nz,nx0,ny0,omega)
     {
-    #pragma omp master
-    if (timeron) timer_start(t_rhs);
     tmp2 = dt;
-    NPB_FOR_BEGIN(R_SSOR_FOR_1)
     #pragma omp for nowait
     for (k = 1; k < nz - 1; k++) {
       for (j = jst; j < jend; j++) {
@@ -151,8 +139,6 @@ void ssor(int niter, logical timed_iterations)
         }
       }
     }
-    #pragma omp master
-    if (timeron) timer_stop(t_rhs);
 
     mthreadnum = 0;
     mthreadnum = omp_get_num_threads() - 1;
@@ -160,25 +146,18 @@ void ssor(int niter, logical timed_iterations)
     iam = 0;
     iam = omp_get_thread_num();
     if (iam <= mthreadnum) isync[iam] = 0;
-    NPB_FOR_END()
     #pragma omp barrier
 
     for (k = 1; k < nz -1; k++) {
       //---------------------------------------------------------------------
       // form the lower triangular part of the jacobian matrix
       //---------------------------------------------------------------------
-      #pragma omp master
-      if (timeron) timer_start(t_jacld);
       jacld(k);
-      #pragma omp master
-      {
-      if (timeron) timer_stop(t_jacld);
+
 
       //---------------------------------------------------------------------
       // perform the lower triangular solution
       //---------------------------------------------------------------------
-      if (timeron) timer_start(t_blts);
-      }
       blts( ISIZ1, ISIZ2, ISIZ3,
             nx, ny, nz, k,
             omega,
@@ -186,8 +165,6 @@ void ssor(int niter, logical timed_iterations)
             a, b, c, d,
             ist, iend, jst, jend, 
             nx0, ny0 );
-      #pragma omp master
-      if (timeron) timer_stop(t_blts);
     }
     #pragma omp barrier
  
@@ -195,18 +172,12 @@ void ssor(int niter, logical timed_iterations)
       //---------------------------------------------------------------------
       // form the strictly upper triangular part of the jacobian matrix
       //---------------------------------------------------------------------
-      #pragma omp master
-      if (timeron) timer_start(t_jacu);
       jacu(k);
-      #pragma omp master
-      {
-      if (timeron) timer_stop(t_jacu);
+
 
       //---------------------------------------------------------------------
       // perform the upper triangular solution
       //---------------------------------------------------------------------
-      if (timeron) timer_start(t_buts);
-      }
       buts( ISIZ1, ISIZ2, ISIZ3,
             nx, ny, nz, k,
             omega,
@@ -214,18 +185,13 @@ void ssor(int niter, logical timed_iterations)
             du, au, bu, cu,
             ist, iend, jst, jend,
             nx0, ny0 );
-      #pragma omp master
-      if (timeron) timer_stop(t_buts);
     }
     #pragma omp barrier
 
     //---------------------------------------------------------------------
     // update the variables
     //---------------------------------------------------------------------
-    #pragma omp master
-    if (timeron) timer_start(t_add);
     tmp2 = tmp;
-    NPB_FOR_BEGIN(R_SSOR_FOR_2)
     #pragma omp for nowait
     for (k = 1; k < nz-1; k++) {
       for (j = jst; j < jend; j++) {
@@ -236,20 +202,15 @@ void ssor(int niter, logical timed_iterations)
         }
       }
     }
-    NPB_FOR_END()
     } //end parallel
-    NPB_PARALLEL_END()
-    if (timeron) timer_stop(t_add);
 
     //---------------------------------------------------------------------
     // compute the max-norms of newton iteration corrections
     //---------------------------------------------------------------------
     if ( (istep % inorm) == 0 ) {
-      if (timeron) timer_start(t_l2norm);
       l2norm( ISIZ1, ISIZ2, ISIZ3, nx0, ny0, nz0,
               ist, iend, jst, jend,
               rsd, delunm );
-      if (timeron) timer_stop(t_l2norm);
       /*
       if ( ipr == 1 ) {
         printf(" \n RMS-norm of SSOR-iteration correction "
@@ -278,10 +239,8 @@ void ssor(int niter, logical timed_iterations)
     // compute the max-norms of newton iteration residuals
     //---------------------------------------------------------------------
     if ( ((istep % inorm ) == 0 ) || ( istep == itmax ) ) {
-      if (timeron) timer_start(t_l2norm);
       l2norm( ISIZ1, ISIZ2, ISIZ3, nx0, ny0, nz0,
               ist, iend, jst, jend, rsd, rsdnm );
-      if (timeron) timer_stop(t_l2norm);
       /*
       if ( ipr == 1 ) {
         printf(" \n RMS-norm of steady-state residual for "
@@ -313,8 +272,7 @@ void ssor(int niter, logical timed_iterations)
     }
   }
 
-  timer_stop(1);
   if (timed_iterations) npb_time_end();
-  maxtime = timer_read(1);
+  maxtime = npb_time_total();
 }
 

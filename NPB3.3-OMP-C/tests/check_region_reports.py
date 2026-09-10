@@ -1,51 +1,57 @@
 #!/usr/bin/env python3
 """Check parallel/for reports, combined equality, and nowait source ranges."""
 import argparse
+import hashlib
+import json
 from pathlib import Path
 import re
 
 from report_region_times import parse_log, TOTAL_NAMES
 
 ROOT = Path(__file__).resolve().parents[1]
-ENTRY = re.compile(r'\[(R_\w+)\] = \{"([^"]+)", ([\w-]+), ([01])\}')
+MANUAL = re.compile(r"\bNPB_(?:PARALLEL_FOR|PARALLEL|FOR)_(?:BEGIN|END)\s*\(|\bnpb_time_(?:start|stop)\s*\(")
 
 
-def region_table(bench):
-    source_dir = ROOT / bench / "src"
-    entries = {key: (name, parent, combined == "1") for key, name, parent, combined
-               in ENTRY.findall((source_dir / "region_info.c").read_text())}
-    return entries
-
-
-def check_source_ranges():
+def check_sources():
     count = 0
     for bench in TOTAL_NAMES:
-        entries = region_table(bench)
-        for source in (ROOT / bench / "src").glob("*.c"):
-            lines = source.read_text().splitlines()
-            for index, line in enumerate(lines):
-                begin = re.search(r"NPB_FOR_BEGIN\((R_\w+)\)", line)
-                explicit = re.search(r"npb_time_start\((R_\w+)\)", line)
-                match = begin or explicit
-                if not match:
-                    continue
-                key = match[1]
-                if entries[key][1] == "-1":
-                    continue
-                marker = "NPB_FOR_END()" if begin else f"npb_time_stop({key})"
-                end = next(i for i in range(index + 1, len(lines)) if marker in lines[i])
-                first = next(i for i in range(index + 1, end)
-                             if re.search(r"#pragma omp for\b", lines[i]))
-                name = entries[key][0]
-                if "nowait" in lines[first]:
-                    assert name.endswith(f":{first + 1}-{end + 1} (nowait)"), (source, key, name)
-                    count += 1
-                else:
-                    assert "(nowait)" not in name and "-" not in name, (source, key, name)
+        directory = ROOT / bench / "src"
+        assert not list(directory.glob("region_info.*")), directory
+        for source in directory.iterdir():
+            if source.suffix in (".c", ".h", ".incl"):
+                assert not MANUAL.search(source.read_text()), source
+                count += 1
     return count
 
 
-def check_report(path):
+def check_manifest(path):
+    manifest = json.loads(path.read_text())
+    sources = {name: Path(name).read_text() for name in manifest["sources"]}
+    for name, digest in manifest["source_sha256"].items():
+        assert hashlib.sha256(sources[name].encode()).hexdigest() == digest, (path, "stale source", name)
+    regions = manifest["regions"]
+    assert [r["id"] for r in regions] == list(range(len(regions))), path
+    for r in regions:
+        lines = sources[r["file"]].splitlines()
+        pragma = lines[r["line"] - 1].strip()
+        expected = {"parallel": "parallel", "combined": "parallel for", "for": "for"}[r["kind"]]
+        assert pragma.startswith("#pragma omp " + expected), (path, r)
+        assert r["line"] <= r["end_line"] <= len(lines), (path, r)
+        label = f"{r['function']}:{r['line']}"
+        if r["nowait"]:
+            label += f"-{r['end_line']} (nowait)"
+            for line in r["loop_lines"]:
+                assert lines[line - 1].strip().startswith("#pragma omp for"), (path, r)
+        assert r["label"] == label, (path, r)
+        if r["kind"] == "for":
+            assert 0 <= r["parent"] < len(regions), (path, r)
+            assert regions[r["parent"]]["kind"] == "parallel", (path, r)
+        else:
+            assert r["parent"] == -1, (path, r)
+    return {r["id"]: (r["label"], r["parent"], r["kind"] == "combined") for r in regions}
+
+
+def check_report(path, manifest_path):
     result = parse_log(path)
     text = path.read_text()
     assert "kernel region" not in text and "iteration region" not in text, path
@@ -57,11 +63,11 @@ def check_report(path):
     assert len(shares) == len(rows), path
     total = result["total"]
     assert total > 0, path
-    table = region_table(path.stem)
+    table = check_manifest(manifest_path)
     expected = {}
     for key, (name, owner, combined) in table.items():
-        kind = "parallel" if owner == "-1" else "for"
-        expected[kind, name] = None if owner == "-1" else table[owner][0]
+        kind = "parallel" if owner == -1 else "for"
+        expected[kind, name] = None if owner == -1 else table[owner][0]
         if combined:
             expected["for", name] = name
     for row, share in zip(rows, shares):
@@ -87,15 +93,18 @@ def check_report(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path, nargs="?")
+    parser.add_argument("--build-dir", type=Path, default=ROOT / ".build")
+    parser.add_argument("--class", dest="npb_class", default="S")
     args = parser.parse_args()
-    print(f"PASS: {check_source_ranges()} nowait source ranges")
+    print(f"PASS: {check_sources()} source files have no manual region instrumentation")
     if args.directory:
         logs = [args.directory / (bench + ".log") for bench in TOTAL_NAMES
                 if (args.directory / (bench + ".log")).exists()]
         if not logs:
             parser.error("no benchmark logs found")
         for path in logs:
-            result = check_report(path)
+            manifest = args.build_dir / (path.stem + "." + args.npb_class) / "instrumented/instrumentation.json"
+            result = check_report(path, manifest)
             print(f"PASS {path.stem}: {len(result['rows'])} rows; parallel parents, combined equality, percentages")
 
 

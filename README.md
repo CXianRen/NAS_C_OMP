@@ -6,7 +6,8 @@ serial implementation removed.
 
 The benchmark sources remain organized under `NPB3.3-OMP-C/<BENCHMARK>/src`.
 A standalone GNU Makefile is provided inside `NPB3.3-OMP-C`, so an external
-build harness is no longer required.
+build harness is no longer required. Builds require Python 3 and Clang 18
+(`CLANG=...` selects another parser), plus the selected C/OpenMP compiler.
 
 ## Build
 
@@ -60,18 +61,30 @@ divided by average step duration; seconds remain accumulated totals. Parent
 and child times overlap and must not be added. EP measures a work batch rather
 than a physical time-step loop.
 
-Each benchmark has fixed IDs in `src/region_info.h` and a hardcoded
-`npb_regions` table in `src/region_info.c`. It stores the source label, physical
-parallel parent ID, and whether the site is a combined parallel-for. Shared
-helpers accumulate all their calls under one fixed ID. Nowait labels use
-`function:start-end (nowait)`: start is the first nowait pragma line, and end
-is the existing `NPB_FOR_END()` or explicit stop-call line. Update the labels
-when moving code; the tests check these ranges against the sources.
+Python generates fixed IDs and the `npb_regions` table in
+`.build/<BENCHMARK>.<CLASS>/instrumented/npb_generated_regions.{h,c}`.
+The original `src` files contain no region BEGIN/END macros, explicit region
+start/stop calls, or hand-maintained region tables. Only application-specific
+iteration-window markers and total/report calls remain in the source.
+
+The generated table records source labels, physical parallel parent IDs and
+combined parallel-for sites. Shared helpers accumulate their calls under one
+fixed ID. Nowait labels use `function:start-end (nowait)` in the original source:
+start is the first nowait pragma; end marks the lexical group boundary in the
+original source. The timing may continue beyond that boundary to an existing
+synchronization point, including through a helper return. IDs and line labels
+are regenerated when source or build configuration changes. The generated
+manifest records this as `timing_end: next_for_or_barrier`.
 
 The API in `common/region_timers.{h,c}` uses fixed arrays and accumulates total
 seconds. Only master reads the region timestamps; it adds no barriers,
-allocations, event logs, runtime parent tracking, or call counters. Original
-NAS timers remain independent and do not create region-report rows.
+allocations, event logs, runtime parent tracking, or call counters. The native
+NAS timer library, numbered timers, switches, and timer-only OpenMP regions
+have been removed. Standard benchmark time and throughput use
+`npb_time_total()`, the same formal-iteration total used by this report.
+With region reporting disabled, only the two total timestamps per iteration
+window remain. These timings exclude setup and verification and therefore
+do not retain every original NAS timing boundary (notably FT and DC).
 
 ```c
 npb_time_begin();                  /* after warmup, before iterations */
@@ -80,27 +93,16 @@ npb_time_end();                    /* before verification */
 npb_time_report();                 /* after the original NAS output */
 ```
 
-Wrap a parallel with `NPB_PARALLEL_BEGIN(id)` / `NPB_PARALLEL_END()`.
-Wrap an unchanged `omp parallel for` with `NPB_PARALLEL_FOR_BEGIN(id)` /
-`NPB_PARALLEL_FOR_END()`; its parallel and for rows share the same total.
-Wrap an ordinary for with `NPB_FOR_BEGIN(id)` / `NPB_FOR_END()`.
-Consecutive nowait loops use one pair, ending before the next ordinary for,
-explicit barrier or parallel-body end:
-
-```c
-NPB_FOR_BEGIN(R_RHS_Z)
-#pragma omp for schedule(static) nowait
-for (...) { /* first loop */ }
-#pragma omp for schedule(static) nowait
-for (...) { /* second loop */ }
-NPB_FOR_END()
-```
-
-The nowait pair ends when the master reaches END, without waiting for other
-workers. An ordinary for includes its existing implicit barrier. Put BEGIN
-directly before the pragma; paired macros open/close a C block, without trailing
-semicolons. Parallel pairs are entered serially; for pairs also work in called
-functions. DC times its master's compute phase; EP times its main work batch.
+Python inserts pairs around parallel and ordinary for constructs. A combined
+parallel-for receives one pair and two equal report rows. Consecutive sibling
+nowait loops share a region. Its timer stays pending until the next measured
+for begins, an existing explicit barrier completes, or the owning parallel
+region exits. A trailing nowait group therefore includes the parallel region
+barrier/join; its end timestamp is shared with the parallel total. An ordinary
+for still includes its own implicit barrier. A following group starts a new
+interval, so deferred groups do not overlap each other. No barrier is added,
+and only the primary thread reads the clock. DC measures the entire OpenMP
+parallel region. EP measures its main work batch.
 
 Check the API with either OpenMP runtime:
 
@@ -115,8 +117,66 @@ parent region. Regenerate its Markdown and CSV from the saved logs with:
 
 ```sh
 python3 NPB3.3-OMP-C/tests/report_region_times.py reports/class_b_checks
-python3 NPB3.3-OMP-C/tests/check_region_reports.py reports/class_b_checks
 ```
+
+Saved logs describe the source revision at collection time; their line labels
+are historical. Check new logs against their generated manifests with:
+
+```sh
+python3 NPB3.3-OMP-C/tests/check_region_reports.py LOG_DIRECTORY \
+  --build-dir NPB3.3-OMP-C/.build --class S
+```
+
+## Automatic Python instrumentation
+
+Normal `make` runs the full pipeline automatically:
+
+```text
+src/*.c → Python + Clang AST → .build/CG.S/instrumented/*.c → C compiler → bin/CG.S
+```
+
+```sh
+make -C NPB3.3-OMP-C BENCHMARKS=CG CLASS=S
+NPB_TIME_REPORT=1 OMP_NUM_THREADS=4 ./NPB3.3-OMP-C/bin/CG.S
+make -C NPB3.3-OMP-C instrument-test
+python3 NPB3.3-OMP-C/tests/test_automatic_build.py
+```
+
+`tools/instrument_regions.py` parses the active preprocessor branches using
+the class's generated parameters and build definitions. `CPPFLAGS` is passed
+to both parsing and compilation; `-D`, `-U`, `-I` and `-std=` options in
+`NPB_CFLAGS` also reach the parser. Additional parser options can be supplied
+through `INSTRUMENT_FLAGS`. Existing OpenMP directives and original files are
+preserved. Runtime timing hooks use the shared `common/region_timers.c`.
+
+For each benchmark/class, the generated directory contains instrumented source
+copies, `npb_generated_regions.{h,c}` and `instrumentation.json`. The manifest
+records source hashes, compiler arguments, IDs, parents and original source
+ranges. `#line` preserves source diagnostics and `__LINE__`. Source, header,
+script and build-configuration changes trigger regeneration before compilation.
+An unchanged build reuses its output. `make clean` removes generated files.
+
+The standalone script remains available for other C programs:
+
+```sh
+python3 NPB3.3-OMP-C/tools/instrument_regions.py app.c helper.c \
+  --output /tmp/instrumented-app -- -I/path/to/headers -DMY_BUILD_OPTION=1
+```
+
+Supply all source files containing parallel sites and their OpenMP helpers in
+one invocation. Application-specific `npb_time_begin/end/report` markers define
+which iterations are measured; the parser does not guess the application's
+notion of a time step.
+
+Literal C `parallel`, `parallel for`, and `for` constructs are supported.
+Nested parallel regions, ambiguous orphaned-loop parents, macro-generated
+OpenMP directives and unsupported combined constructs are rejected. Syntax
+validation completes before output is published. All ten NAS benchmarks use
+this same generator, including IS and DC, without special hand-inserted region
+hooks. This source preprocessor is independent of OMPT.
+
+[Automatic instrumentation validation](reports/automatic_instrumentation/README.md)
+contains the Class S correctness and report checks.
 
 [1]: www.nas.nasa.gov/publications/npb.html
 

@@ -52,7 +52,6 @@ void jacld(int k)
   c1345 = C1 * C3 * C4 * C5;
   c34 = C3 * C4;
 
-  NPB_FOR_BEGIN(R_JACLD_FOR_1)
   #pragma omp for schedule(static) nowait
   for (j = jst; j < jend; j++) {
     for (i = ist; i < iend; i++) {
@@ -336,6 +335,5 @@ void jacld(int k)
         - dt * tx1 * dx5;
     }
   }
-  NPB_FOR_END()
 }
 

@@ -22,8 +22,8 @@ with tempfile.TemporaryDirectory(prefix="npb-time-test-") as directory:
     subprocess.run(shlex.split(args.cc) + [
         "-O2", "-std=c11", "-fopenmp", "-Wall", "-Wextra", "-Wpedantic",
         "-Werror", "-I", str(root / "common"), str(source),
-        str(root / "common/region_timers.c"), str(root / "common/c_timers.c"),
-        str(root / "common/wtime.c"), "-Wl,--wrap=omp_get_wtime",
+        str(root / "common/region_timers.c"),
+        "-Wl,--wrap=omp_get_wtime",
         "-o", str(binary),
     ], check=True)
     env = os.environ.copy()
@@ -68,8 +68,8 @@ rows = re.findall(r"^( *)(iteration|kernel|parallel|for) region (.*?)  ([\d.]+) 
                   out, re.MULTILINE)
 assert len(rows) == 8, out
 total = float(re.search(r"^iteration total: ([\d.]+) s$", out, re.MULTILINE)[1])
-# Three windows, each with 32 clock reads between its begin/end timestamps.
-assert total == 0.099, out
+# Three windows, each with 26 clock reads between its begin/end timestamps.
+assert total == 0.081, out
 assert "excluded" not in out, out
 assert "calls=" not in out, out
 assert "kernel region" not in out and "iteration region" not in out
@@ -106,4 +106,4 @@ print("      combined equality, explicit nowait groups BEFORE ordinary loops,")
 print("      orphaned for, repeated calls, source labels, master-only clock reads,")
 print("      all-level time-step percentages, empty report, old/new log parsing,")
 print("      parallel/for only, nowait line ranges, static parallel parents,")
-print("      no extra clock reads during warmup, verification, or disabled runs")
+print("      no extra clock reads during warmup, verification, and only total timestamps during disabled runs")

@@ -33,7 +33,6 @@
 //-------------------------------------------------------------------------//
 
 #include "applu.incl"
-#include "timers.h"
 
 //---------------------------------------------------------------------
 // compute the right hand sides
@@ -54,14 +53,11 @@ void rhs()
   double u21jm1, u31jm1, u41jm1, u51jm1;
   double u21km1, u31km1, u41km1, u51km1;
 
-  if (timeron) timer_start(t_rhs);
-  NPB_PARALLEL_BEGIN(R_RHS_PARALLEL)
   #pragma omp parallel default(shared) private(i,j,k,m,q,flux,tmp,utmp,rtmp,\
               u51im1,u41im1,u31im1,u21im1,u51i,u41i,u31i,u21i,u21, \
               u51jm1,u41jm1,u31jm1,u21jm1,u51j,u41j,u31j,u21j,u31, \
               u51km1,u41km1,u31km1,u21km1,u51k,u41k,u31k,u21k,u41)
   {
-  NPB_FOR_BEGIN(R_RHS_FOR_1)
   #pragma omp for schedule(static)
   for (k = 0; k < nz; k++) {
     for (j = 0; j < ny; j++) {
@@ -78,14 +74,10 @@ void rhs()
       }
     }
   }
-  NPB_FOR_END()
 
-  #pragma omp master
-  if (timeron) timer_start(t_rhsx);
   //---------------------------------------------------------------------
   // xi-direction flux differences
   //---------------------------------------------------------------------
-  NPB_FOR_BEGIN(R_RHS_FOR_2)
   #pragma omp for schedule(static) nowait
   for (k = 1; k < nz - 1; k++) {
     for (j = jst; j < jend; j++) {
@@ -202,17 +194,9 @@ void rhs()
 
     }
   }
-  #pragma omp master
-  {
-  if (timeron) timer_stop(t_rhsx);
-
-  if (timeron) timer_start(t_rhsy);
-  }
   //---------------------------------------------------------------------
   // eta-direction flux differences
   //---------------------------------------------------------------------
-  NPB_FOR_END()
-  NPB_FOR_BEGIN(R_RHS_FOR_3)
   #pragma omp for schedule(static)
   for (k = 1; k < nz - 1; k++) {
     for (i = ist; i < iend; i++) {
@@ -337,17 +321,9 @@ void rhs()
     }
 
   }
-  NPB_FOR_END()
-  #pragma omp master
-  {
-  if (timeron) timer_stop(t_rhsy);
-
-  if (timeron) timer_start(t_rhsz);
-  }
   //---------------------------------------------------------------------
   // zeta-direction flux differences
   //---------------------------------------------------------------------
-  NPB_FOR_BEGIN(R_RHS_FOR_4)
   #pragma omp for schedule(static) nowait
   for (j = jst; j < jend; j++) {
     for (i = ist; i < iend; i++) {
@@ -470,10 +446,6 @@ void rhs()
       }
     }
   }
-  NPB_FOR_END()
   } //end parallel
-  NPB_PARALLEL_END()
-  if (timeron) timer_stop(t_rhsz);
-  if (timeron) timer_stop(t_rhs);
 }
 

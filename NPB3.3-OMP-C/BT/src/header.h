@@ -53,7 +53,6 @@
 #include "npbparams.h"
 #include "type.h"
 #include "region_timers.h"
-#include "region_info.h"
 
 #define AA            0
 #define BB            1
@@ -63,7 +62,6 @@
 /* common /global/ */
 extern double elapsed_time;
 extern int grid_points[3];
-extern logical timeron;
 
 /* common /constants/ */
 extern double tx1, tx2, tx3, ty1, ty2, ty3, tz1, tz2, tz3, 
@@ -108,22 +106,6 @@ extern double ue [PROBLEM_SIZE+1][5];
 extern double buf[PROBLEM_SIZE+1][5];
 #pragma omp threadprivate(cuf,q,ue,buf)
       
-
-//-----------------------------------------------------------------------
-// Timer constants
-//-----------------------------------------------------------------------
-#define t_total     1
-#define t_rhsx      2
-#define t_rhsy      3
-#define t_rhsz      4
-#define t_rhs       5
-#define t_xsolve    6
-#define t_ysolve    7
-#define t_zsolve    8
-#define t_rdis1     9
-#define t_rdis2     10
-#define t_add       11
-#define t_last      11
 
 
 void initialize();

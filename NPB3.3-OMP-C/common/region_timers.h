@@ -5,7 +5,7 @@
 #define NPB_TIME_MASTER _Pragma("omp master")
 
 #define NPB_MAX_REGIONS 256
-/* Defined by each benchmark's hardcoded region_info.c. parent=-1: parallel. */
+/* Defined by Python's generated region table. parent=-1: parallel. */
 typedef struct {
   const char *name;
   int parent, combined;
@@ -19,7 +19,10 @@ void npb_time_begin(void);
 void npb_time_end(void);
 void npb_time_start(int id);
 void npb_time_stop(int id);
+void npb_time_nowait_start(int id);
+void npb_time_sync(void);
 double npb_time_read(int id);
+double npb_time_total(void);
 void npb_time_report(void);
 
 /* Fixed ID; one pair for a nowait chain, ending before the ordinary for.

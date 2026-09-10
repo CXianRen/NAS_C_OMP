@@ -1,6 +1,9 @@
 .DEFAULT_GOAL := all
 
-CC := gcc
+CC := clang
+CLANG ?= clang-18
+PYTHON ?= python3
+INSTRUMENT_FLAGS ?= $(CPPFLAGS) $(filter -D% -U% -I% -std=%,$(NPB_CFLAGS))
 NPB_DIR := .
 BUILD_DIR ?= .build
 BIN_DIR ?= bin
@@ -14,11 +17,12 @@ NPB_LDFLAGS ?= -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864
 ALL_BENCHMARKS := BT CG DC EP FT IS LU MG SP UA
 ALL_CLASSES := S W A B C D E
 RAND_BENCHMARKS := BT CG DC EP FT MG
-COMMON_SOURCES := $(addprefix $(NPB_DIR)/common/,c_print_results.c c_timers.c region_timers.c print_results.c wtime.c)
+COMMON_SOURCES := $(addprefix $(NPB_DIR)/common/,c_print_results.c region_timers.c print_results.c)
 COMMON_HEADERS := $(wildcard $(NPB_DIR)/common/*.h)
 
 $(foreach b,$(ALL_BENCHMARKS),\
-  $(eval $(b)_SOURCES := $(wildcard $(NPB_DIR)/$(b)/src/*.c) $(COMMON_SOURCES) \
+  $(eval $(b)_SOURCES := $(wildcard $(NPB_DIR)/$(b)/src/*.c)) \
+  $(eval $(b)_COMMON := $(COMMON_SOURCES) \
     $(if $(filter $(b),$(RAND_BENCHMARKS)),$(NPB_DIR)/common/randdp.c)))
 UA_SOURCES := $(filter-out $(NPB_DIR)/UA/src/transfer_au.c,$(UA_SOURCES))
 
@@ -45,7 +49,7 @@ TARGETS := $(foreach b,$(KNOWN_BENCHMARKS),\
 SETPARAMS := $(BUILD_DIR)/setparams
 MAKEDEF := $(BUILD_DIR)/config/make.def
 
-.PHONY: all check clean time-test
+.PHONY: all check clean time-test instrument-test FORCE
 
 all: check $(TARGETS)
 $(TARGETS): | check
@@ -61,20 +65,29 @@ $(SETPARAMS): $(NPB_DIR)/sys/setparams.c
 	@mkdir -p "$(@D)"
 	$(CC) -O2 "$<" -o "$@"
 
-$(MAKEDEF): Makefile
+FORCE:
+
+$(MAKEDEF): Makefile FORCE
 	@mkdir -p "$(@D)"
 	@printf '%s\n' \
 		'CC = $(CC)' 'CLINK = $(CC)' 'C_LIB = -lm' 'C_INC = (none)' \
 		'CFLAGS = $(NPB_CFLAGS)' 'CLINKFLAGS = $(NPB_LDFLAGS)' \
-		'RAND = randdp' > "$@"
+		'RAND = randdp' 'CPPFLAGS = $(CPPFLAGS)' \
+		'CLANG = $(CLANG)' 'INSTRUMENT_FLAGS = $(INSTRUMENT_FLAGS)' \
+		'PYTHON = $(PYTHON)' \
+		$(foreach b,$(ALL_BENCHMARKS),'$(b)_SOURCES = $($(b)_SOURCES)') > "$@.tmp"
+	@cmp -s "$@.tmp" "$@" && rm "$@.tmp" || mv "$@.tmp" "$@"
 
 define BUILD_BINARY
-$(BIN_DIR)/$(1).$(2): $$($(1)_SOURCES) $(COMMON_HEADERS) $(wildcard $(NPB_DIR)/$(1)/src/*.h) $(SETPARAMS) $(MAKEDEF) Makefile
+$(BIN_DIR)/$(1).$(2): $$($(1)_SOURCES) $$($(1)_COMMON) $(COMMON_HEADERS) $(wildcard $(NPB_DIR)/$(1)/src/*.h $(NPB_DIR)/$(1)/src/*.incl) $(NPB_DIR)/tools/instrument_regions.py $(SETPARAMS) $(MAKEDEF) Makefile
 	@mkdir -p "$(BUILD_DIR)/$(1).$(2)" "$(BIN_DIR)"
 	@cd "$(BUILD_DIR)/$(1).$(2)" && ../setparams "$(1)" "$(2)"
-	$(CC) $(NPB_CFLAGS) \
+	$(PYTHON) $(NPB_DIR)/tools/instrument_regions.py $$($(1)_SOURCES) \
+		--clang "$(CLANG)" --output "$(BUILD_DIR)/$(1).$(2)/instrumented" -- \
+		-I"$(BUILD_DIR)/$(1).$(2)" -I"$(NPB_DIR)/$(1)/src" $(INSTRUMENT_FLAGS)
+	$(CC) $(CPPFLAGS) $(NPB_CFLAGS) \
 		-I"$(BUILD_DIR)/$(1).$(2)" -I"$(NPB_DIR)/common" -I"$(NPB_DIR)/$(1)/src" \
-		$$($(1)_SOURCES) -o "$$@" $(NPB_LDFLAGS) -lm
+		"$(BUILD_DIR)/$(1).$(2)/instrumented/"*.c $$($(1)_COMMON) -o "$$@" $(NPB_LDFLAGS) -lm
 endef
 
 $(foreach b,$(ALL_BENCHMARKS),\
@@ -86,3 +99,7 @@ clean:
 time-test:
 	python3 $(NPB_DIR)/tests/test_region_timers.py --cc "$(CC)"
 	python3 $(NPB_DIR)/tests/check_region_reports.py
+
+instrument-test:
+	python3 $(NPB_DIR)/tests/test_instrument_regions.py --cc "$(CC)" --clang "$(CLANG)"
+	python3 $(NPB_DIR)/tests/test_nowait_barriers.py --cc "$(CC)" --clang "$(CLANG)"

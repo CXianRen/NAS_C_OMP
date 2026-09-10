@@ -43,13 +43,11 @@
 #endif
 
 #include "header.h"
-#include "timers.h"
 #include "print_results.h"
 
 /* common /global/ */
 double elapsed_time;
 int grid_points[3];
-logical timeron;
 
 /* common /constants/ */
 double tx1, tx2, tx3, ty1, ty2, ty3, tz1, tz2, tz3, 
@@ -97,7 +95,7 @@ double tmp1, tmp2, tmp3;
 
 int main(int argc, char *argv[])
 {
-  int i, niter, step;
+  int niter, step;
   double navg, mflops, n3;
 
   double tmax;
@@ -109,7 +107,6 @@ int main(int argc, char *argv[])
   // defaults from parameters
   //---------------------------------------------------------------------
   FILE *fp;
-  timeron = npb_time_enabled();
 
   printf("\n\n NAS Parallel Benchmarks (NPB3.3-OMP-C) - BT Benchmark\n\n");
 
@@ -156,9 +153,6 @@ int main(int argc, char *argv[])
 
   set_constants();
 
-  for (i = 1; i <= t_last; i++) {
-    timer_clear(i);
-  }
 
   initialize();
 
@@ -170,11 +164,7 @@ int main(int argc, char *argv[])
   adi();
   initialize();
 
-  for (i = 1; i <= t_last; i++) {
-    timer_clear(i);
-  }
   npb_time_begin();
-  timer_start(1);
 
   for (step = 1; step <= niter; step++) {
     if ((step % 20) == 0 || step == 1) {
@@ -184,9 +174,8 @@ int main(int argc, char *argv[])
     adi();
   }
 
-  timer_stop(1);
   npb_time_end();
-  tmax = timer_read(1);
+  tmax = npb_time_total();
 
   verify(niter, &Class, &verified);
 

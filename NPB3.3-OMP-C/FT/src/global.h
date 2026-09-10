@@ -86,20 +86,8 @@ static int fftblock, fftblockpad;
 static int dims[3];
 
 
-#define T_total       1
-#define T_setup       2
-#define T_fft         3
-#define T_evolve      4
-#define T_checksum    5 
-#define T_fftx        6
-#define T_ffty        7
-#define T_fftz        8
-#define T_max         8
-
-
 // other stuff
 /* common /dbg/ */
-static logical timers_enabled;
 static logical debug;
 //static logical debugsynch;
 

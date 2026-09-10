@@ -44,13 +44,10 @@
 
 #include "type.h"
 #include "region_timers.h"
-#include "region_info.h"
-#include "timers.h"
 
 
 /* common /global/ */
 extern int grid_points[3], nx2, ny2, nz2;
-extern logical timeron;
 
 /* common /constants/ */
 extern double tx1, tx2, tx3, ty1, ty2, ty3, tz1, tz2, tz3, 
@@ -106,26 +103,6 @@ extern double lhs [IMAXP+1][IMAXP+1][5];
 extern double lhsp[IMAXP+1][IMAXP+1][5];
 extern double lhsm[IMAXP+1][IMAXP+1][5];
 #pragma omp threadprivate(lhs,lhsp,lhsm)
-
-//-----------------------------------------------------------------------
-// Timer constants
-//-----------------------------------------------------------------------
-#define t_total     1
-#define t_rhsx      2
-#define t_rhsy      3
-#define t_rhsz      4
-#define t_rhs       5
-#define t_xsolve    6
-#define t_ysolve    7
-#define t_zsolve    8
-#define t_rdis1     9
-#define t_rdis2     10
-#define t_txinvr    11
-#define t_pinvr     12
-#define t_ninvr     13
-#define t_tzetar    14
-#define t_add       15
-#define t_last      15
 
 
 //-----------------------------------------------------------------------

@@ -43,8 +43,6 @@ void tzetar()
   double t1, t2, t3, ac, xvel, yvel, zvel, r1, r2, r3, r4, r5;
   double btuz, ac2u, uzik1;
 
-  if (timeron) timer_start(t_tzetar);
-  NPB_PARALLEL_FOR_BEGIN(R_TZETAR_PARALLEL)
   #pragma omp parallel for default(shared) \
      private(i,j,k,t1,t2,t3,ac,xvel,yvel,zvel,r1,r2,r3,r4,r5,btuz,ac2u,uzik1)
   for (k = 1; k <= nz2; k++) {
@@ -79,7 +77,5 @@ void tzetar()
       }
     }
   }
-  NPB_PARALLEL_FOR_END()
-  if (timeron) timer_stop(t_tzetar);
 }
 

@@ -40,7 +40,6 @@
 #include <math.h>
 
 #include "header.h"
-#include "timers.h"
 #include "print_results.h"
 
 
@@ -234,9 +233,6 @@ int face_l1[3];
 int face_l2[3];
 int face_ld[3];
 
-// Timer parameters
-/* common /timing/ */
-logical timeron;
 
 // Locks used for atomic updates
 /* common /sync_cmn/ */
@@ -255,7 +251,6 @@ int main(int argc, char *argv[])
   // defaults from parameters
   //---------------------------------------------------------------------
   FILE *fp;
-  timeron = npb_time_enabled();
 
   printf("\n\n NAS Parallel Benchmarks (NPB3.3-OMP-C) - UA Benchmark\n\n");
 
@@ -293,10 +288,6 @@ int main(int argc, char *argv[])
 
   top_constants();
 
-  for (i = 1; i <= t_last; i++) {
-    timer_clear(i);
-  }
-  if (timeron) timer_start(t_init);
 
   // set up initial mesh (single element) and solution (all zero)
   create_initial_grid();
@@ -321,9 +312,7 @@ int main(int argc, char *argv[])
   mortar();
   prepwork();
   adaptation(&ifmortar, 0);
-  if (timeron) timer_stop(t_init);
 
-  timer_clear(1);
 
   time = 0.0;
   for (step = 0; step <= niter; step++) {
@@ -333,35 +322,26 @@ int main(int argc, char *argv[])
 
       time = 0.0;
       nelt_tot = 0.0;
-      for (i = 1; i <= t_last; i++) {
-        if (i != t_init) timer_clear(i);
-      }
-      timer_start(1);
       npb_time_begin();
     }
 
     // advance the convection step 
     convect(ifmortar);
 
-    if (timeron) timer_start(t_transf2);
     // prepare the intital guess for cg
     transf(tmort, (double *)ta1);
 
     // compute residual for diffusion term based on intital guess
 
     // compute the left hand side of equation, lapacian t
-    NPB_PARALLEL_BEGIN(R_MAIN_1)
     #pragma omp parallel default(shared) private(ie,k,j,i) 
     {
-    NPB_FOR_BEGIN(R_MAIN_2)
     #pragma omp for
     for (ie = 0; ie < nelt; ie++) {
       laplacian(ta2[ie], ta1[ie], size_e[ie]);
     }
-    NPB_FOR_END()
 
     // compute the residual 
-    NPB_FOR_BEGIN(R_MAIN_3)
     #pragma omp for
     for (ie = 0; ie < nelt; ie++) {
       for (k = 0; k < LX1; k++) {
@@ -372,18 +352,15 @@ int main(int argc, char *argv[])
         }
       }
     }
-    NPB_FOR_END()
     }
-    NPB_PARALLEL_END() //end parallel
+    //end parallel
 
     // get the residual on mortar 
     transfb(rmor, (double *)trhs);
-    if (timeron) timer_stop(t_transf2);
 
     // apply boundary condition: zero out the residual on domain boundaries
 
     // apply boundary conidtion to trhs
-    NPB_PARALLEL_FOR_BEGIN(R_MAIN_4)
     #pragma omp parallel for default(shared) private(ie,iside)
     for (ie = 0; ie < nelt; ie++) {
       for (iside = 0; iside < NSIDES; iside++) {
@@ -392,7 +369,6 @@ int main(int argc, char *argv[])
         }
       }
     }
-    NPB_PARALLEL_FOR_END()
     // apply boundary condition to rmor
     col2(rmor, tmmor, nmor);
 
@@ -400,9 +376,7 @@ int main(int argc, char *argv[])
     diffusion(ifmortar);
 
     // add convection and diffusion
-    if (timeron) timer_start(t_add2);
     add2((double *)ta1, (double *)t, ntot);
-    if (timeron) timer_stop(t_add2);
 
     // perform mesh adaptation
     time = time + dtime;
@@ -417,8 +391,7 @@ int main(int argc, char *argv[])
   }
 
   npb_time_end();
-  timer_stop(1);
-  tmax = timer_read(1);
+  tmax = npb_time_total();
 
   verify(&Class, &verified);
 

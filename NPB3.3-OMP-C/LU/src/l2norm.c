@@ -56,13 +56,11 @@ void l2norm (int ldx, int ldy, int ldz, int nx0, int ny0, int nz0,
     sum[m] = 0.0;
   }
 
-  NPB_PARALLEL_BEGIN(R_L2NORM_PARALLEL)
   #pragma omp parallel default(shared) private(i,j,k,m,sum_local)
   {
   for (m = 0; m < 5; m++) {
     sum_local[m] = 0.0;
   }
-  NPB_FOR_BEGIN(R_L2NORM_FOR_1)
   #pragma omp for nowait
   for (k = 1; k < nz0-1; k++) {
     for (j = jst; j < jend; j++) {
@@ -73,13 +71,11 @@ void l2norm (int ldx, int ldy, int ldz, int nx0, int ny0, int nz0,
       }
     }
   }
-  NPB_FOR_END()
   for (m = 0; m < 5; m++) {
     #pragma omp atomic
     sum[m] += sum_local[m];
   }
   } //end parallel
-  NPB_PARALLEL_END()
 
   for (m = 0; m < 5; m++) {
     sum[m] = sqrt ( sum[m] / ( (nx0-2)*(ny0-2)*(nz0-2) ) );

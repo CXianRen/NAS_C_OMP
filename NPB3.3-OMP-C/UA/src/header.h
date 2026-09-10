@@ -35,7 +35,7 @@
 #include <omp.h>
 #include "npbparams.h"
 #include "type.h"
-#include "region_info.h"
+#include "region_timers.h"
 
 // Array dimensions     
 #define LX1       5
@@ -241,20 +241,6 @@ extern int face_l1[3];
 extern int face_l2[3];
 extern int face_ld[3];
 
-// Timer parameters
-/* common /timing/ */
-extern logical timeron;
-#define t_total       1
-#define t_init        2
-#define t_convect     3
-#define t_transfb_c   4
-#define t_diffusion   5
-#define t_transf      6
-#define t_transfb     7
-#define t_adaptation  8
-#define t_transf2     9
-#define t_add2        10
-#define t_last        10
 
 // Locks used for atomic updates
 /* common /sync_cmn/ */

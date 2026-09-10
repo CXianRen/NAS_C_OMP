@@ -5,7 +5,9 @@
 
 static double start[NPB_MAX_REGIONS], elapsed[NPB_MAX_REGIONS];
 static double iteration_start, iteration_elapsed;
-static int enabled = -1;
+static int enabled = -1, iteration_running;
+/* Accessed only by the primary thread. Nested parallel timing is unsupported. */
+static int pending_nowait = -1;
 int npb_time_active;
 
 int npb_time_enabled(void)
@@ -20,31 +22,72 @@ int npb_time_enabled(void)
 
 void npb_time_begin(void)
 {
-  if (!npb_time_enabled()) return;
+  iteration_running = 1;
   iteration_start = omp_get_wtime();
-  npb_time_active = 1;
+  npb_time_active = npb_time_enabled();
 }
 
 void npb_time_end(void)
 {
-  if (!npb_time_active) return;
+  if (!iteration_running) return;
   iteration_elapsed += omp_get_wtime() - iteration_start;
   npb_time_active = 0;
+  iteration_running = 0;
+}
+
+static void finish_nowait(double end)
+{
+  if (pending_nowait < 0) return;
+  elapsed[pending_nowait] += end - start[pending_nowait];
+  pending_nowait = -1;
 }
 
 void npb_time_start(int id)
 {
-  if (npb_time_active) start[id] = omp_get_wtime();
+  if (npb_time_active) {
+    double begin = omp_get_wtime();
+    /* A new for starts a new interval, including when called from a helper. */
+    finish_nowait(begin);
+    start[id] = begin;
+  }
 }
 
 void npb_time_stop(int id)
 {
-  if (npb_time_active) elapsed[id] += omp_get_wtime() - start[id];
+  if (npb_time_active) {
+    double end = omp_get_wtime();
+    elapsed[id] += end - start[id];
+    if (pending_nowait == id) pending_nowait = -1;
+    /* The parallel stop runs after its existing implicit barrier/join.
+     * Reuse this timestamp for its last nowait child and its own total.
+     */
+    if (pending_nowait >= 0 && npb_regions[pending_nowait].parent == id)
+      finish_nowait(end);
+  }
+}
+
+void npb_time_nowait_start(int id)
+{
+  if (npb_time_active) {
+    npb_time_start(id);
+    pending_nowait = id;
+  }
+}
+
+void npb_time_sync(void)
+{
+  if (npb_time_active && pending_nowait >= 0)
+    finish_nowait(omp_get_wtime());
 }
 
 double npb_time_read(int id)
 {
   return elapsed[id];
+}
+
+double npb_time_total(void)
+{
+  return iteration_elapsed;
 }
 
 static double step_percent(double seconds)

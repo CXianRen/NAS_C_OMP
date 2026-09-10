@@ -51,8 +51,7 @@
 #include "type.h"
 #include "npbparams.h"
 #include "randdp.h"
-#include "timers.h"
-#include "region_info.h"
+#include "region_timers.h"
 #include "print_results.h"
 
 #define MAX(X,Y)  (((X) > (Y)) ? (X) : (Y))
@@ -80,12 +79,11 @@ int main(int argc, char *argv[])
   int    np;
   int    i, ik, kk, l, k, nit;
   int    k_offset, j;
-  logical verified, timers_enabled;
+  logical verified;
 
   double dum[3] = {1.0, 1.0, 1.0};
   char   size[16];
 
-  timers_enabled = npb_time_enabled();
 
   //--------------------------------------------------------------------
   //  Because the size of the problem is too large to store in a 32-bit
@@ -129,13 +127,6 @@ int main(int argc, char *argv[])
   }
   Mops = log(sqrt(fabs(MAX(1.0, 1.0))));   
 
-  #pragma omp parallel
-  {
-    timer_clear(0);
-    if (timers_enabled) timer_clear(1);
-    if (timers_enabled) timer_clear(2);
-  }
-  timer_start(0);
 
   t1 = A;
   vranlc(0, &t1, A, x);
@@ -169,14 +160,12 @@ int main(int argc, char *argv[])
   k_offset = -1;
 
   npb_time_begin();
-  NPB_PARALLEL_BEGIN(R_MAIN_PARALLEL_1)
   #pragma omp parallel default(shared) private(k,kk,t1,t2,t3,t4,i,ik,x1,x2,l)
   {
     for (i = 0; i < NQ; i++) {
       qq[i] = 0.0;
     }
 
-    NPB_FOR_BEGIN(R_MAIN_FOR_1)
     #pragma omp for reduction(+:sx,sy) nowait
     for (k = 1; k <= np; k++) {
       kk = k_offset + k; 
@@ -196,16 +185,13 @@ int main(int argc, char *argv[])
       //--------------------------------------------------------------------
       //  Compute uniform pseudorandom numbers.
       //--------------------------------------------------------------------
-      if (timers_enabled) timer_start(2);
       vranlc(2 * NK, &t1, A, x);
-      if (timers_enabled) timer_stop(2);
 
       //--------------------------------------------------------------------
       //  Compute Gaussian deviates by acceptance-rejection method and 
       //  tally counts in concentri//square annuli.  This loop is not 
       //  vectorizable. 
       //--------------------------------------------------------------------
-      if (timers_enabled) timer_start(1);
 
       for (i = 0; i < NK; i++) {
         x1 = 2.0 * x[2*i] - 1.0;
@@ -222,24 +208,20 @@ int main(int argc, char *argv[])
         }
       }
 
-      if (timers_enabled) timer_stop(1);
     }
-    NPB_FOR_END()
 
     for (i = 0; i < NQ; i++) {
       #pragma omp atomic
       q[i] += qq[i];
     }
   }
-  NPB_PARALLEL_END()
   npb_time_end();
 
   for (i = 0; i < NQ; i++) {
     gc = gc + q[i];
   }
 
-  timer_stop(0);
-  tm = timer_read(0);
+  tm = npb_time_total();
 
   nit = 0;
   verified = true;

@@ -48,7 +48,6 @@
 #include <math.h>
 
 #include "applu.incl"
-#include "timers.h"
 #include "print_results.h"
 
 
@@ -130,7 +129,6 @@ double ce[5][13];
 //---------------------------------------------------------------------
 /* common/timer/ */
 double maxtime;
-logical timeron;
 
 
 int main(int argc, char *argv[])
@@ -139,10 +137,6 @@ int main(int argc, char *argv[])
   logical verified;
   double mflops;
 
-  //---------------------------------------------------------------------
-  // Setup info for timers
-  //---------------------------------------------------------------------
-  timeron = npb_time_enabled();
 
   //---------------------------------------------------------------------
   // read input data

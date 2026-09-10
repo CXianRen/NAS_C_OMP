@@ -45,8 +45,6 @@ void x_solve()
   int i, j, k, i1, i2, m;
   double ru1, fac1, fac2;
 
-  if (timeron) timer_start(t_xsolve);
-  NPB_PARALLEL_FOR_BEGIN(R_X_SOLVE_PARALLEL)
   #pragma omp parallel for default(shared) private(i,j,k,i1,i2,m, \
                                                    ru1,fac1,fac2)
   for (k = 1; k <= nz2; k++) {
@@ -295,8 +293,6 @@ void x_solve()
       }
     }
   }
-  NPB_PARALLEL_FOR_END()
-  if (timeron) timer_stop(t_xsolve);
 
   //---------------------------------------------------------------------
   // Do the block-diagonal inversion          

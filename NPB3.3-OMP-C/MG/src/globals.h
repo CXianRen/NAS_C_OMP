@@ -82,18 +82,3 @@ static int lt, lb;
 //  Set at m=1024, can handle cases up to 1024^3 case
 //---------------------------------------------------------------------
 #define M   (NM+1)
-
-
-/* common /timers/ */
-static logical timeron;
-#define T_init      0
-#define T_bench     1
-#define T_mg3P      2
-#define T_psinv     3
-#define T_resid     4
-#define T_resid2    5
-#define T_rprj3     6
-#define T_interp    7
-#define T_norm2     8
-#define T_comm3     9
-#define T_last      10

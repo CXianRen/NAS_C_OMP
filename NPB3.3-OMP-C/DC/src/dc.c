@@ -57,17 +57,12 @@
 #include "adc.h"
 #include "macrodef.h"
 #include "npbparams.h"
-#include "region_info.h"
+#include "region_timers.h"
 
 #ifdef UNIX
 #include <sys/types.h>
 #include <unistd.h>
 
-#define MAX_TIMERS 64  /* NPB maximum timers */
-  void    timer_clear(int);
-  void    timer_start(int);
-  void    timer_stop(int); 
-  double  timer_read(int);
 #endif
 
 void c_print_results( char   *name,
@@ -182,7 +177,6 @@ int32 DC(ADC_VIEW_PARS *adcpp) {
       uint64 totalViewSizesInBytes;
       uint32 totalNumberOfMadeViews;
       uint64 checksum;
-      double tm_max;
    } PAR_VIEW_ST;
    
    PAR_VIEW_ST *pvstp;
@@ -206,8 +200,6 @@ int32 DC(ADC_VIEW_PARS *adcpp) {
    npb_time_begin();
 #pragma omp parallel shared(pvstp) private(itsk)
   {
-   double tm0=0;
-   int itimer=0;
    ADC_VIEW_CNTL *adccntlp;
 #ifdef _OPENMP
    itsk=omp_get_thread_num();
@@ -230,21 +222,14 @@ int32 DC(ADC_VIEW_PARS *adcpp) {
      if( PartitionCube(adccntlp) ) {
         PutErrMsg("DC.PartitionCube failed");
      }
-     timer_clear(itimer);
-     timer_start(itimer);
-     if (itsk == 0) npb_time_start(R_COMPUTE);
      if( ComputeGivenGroupbys(adccntlp) ) {
         PutErrMsg("DC.ComputeGivenGroupbys failed");
      }
-     if (itsk == 0) npb_time_stop(R_COMPUTE);
-     timer_stop(itimer);
-     tm0 = timer_read(itimer);
    }
 #ifdef _OPENMP    
 #pragma omp critical
 #endif
    {
-     if(pvstp->tm_max<tm0) pvstp->tm_max=tm0;
      pvstp->verificationFailed += adccntlp->verificationFailed;
      if (!adccntlp->verificationFailed) {
        pvstp->totalNumberOfMadeViews += adccntlp->numberOfMadeViews;
@@ -260,7 +245,7 @@ int32 DC(ADC_VIEW_PARS *adcpp) {
  } /* omp parallel */
    npb_time_end();
 
-   t_total=pvstp->tm_max; 
+   t_total=npb_time_total();
  
    pvstp->verificationFailed=Verify(pvstp->checksum,adcpp);
    verified = (pvstp->verificationFailed == -1)? -1 :

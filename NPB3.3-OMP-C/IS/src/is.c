@@ -41,7 +41,7 @@
  *************************************************************************/
 
 #include "npbparams.h"
-#include "region_info.h"
+#include "region_timers.h"
 #include <stdlib.h>
 #include <stdio.h>
 #ifdef _OPENMP
@@ -250,12 +250,6 @@ void c_print_results( char   *name,
                       char   *clinkflags );
 
 
-void    timer_clear( int n );
-void    timer_start( int n );
-void    timer_stop( int n );
-double  timer_read( int n );
-
-
 /*
  *    FUNCTION RANDLC (X, A)
  *
@@ -356,8 +350,6 @@ double	randlc( double *X, double *A )
 } 
 
 
-
-
 /*****************************************************************/
 /************   F  I  N  D  _  M  Y  _  S  E  E  D    ************/
 /************                                         ************/
@@ -408,7 +400,6 @@ double   find_my_seed( int kn,        /* my processor rank, 0<=kn<=num procs */
 }
 
 
-
 /*****************************************************************/
 /*************      C  R  E  A  T  E  _  S  E  Q      ************/
 /*****************************************************************/
@@ -455,7 +446,6 @@ void	create_seq( double seed, double a )
     }
   } /*omp parallel*/
 }
-
 
 
 /*****************************************************************/
@@ -507,7 +497,6 @@ void alloc_key_buff( void )
 
 #endif /*USE_BUCKETS*/
 }
-
 
 
 /*****************************************************************/
@@ -585,8 +574,6 @@ void full_verify( void )
 }
 
 
-
-
 /*****************************************************************/
 /*************             R  A  N  K             ****************/
 /*****************************************************************/
@@ -626,7 +613,6 @@ void rank( int iteration )
 
 
     if (npb_rank_timing) npb_time_begin();
-    NPB_PARALLEL_BEGIN(R_RANK_PARALLEL_1)
 #pragma omp parallel private(i, k)
   {
     INT_TYPE *work_buff, m, k1, k2;
@@ -650,11 +636,9 @@ void rank( int iteration )
         work_buff[i] = 0;
 
 /*  Determine the number of keys in each bucket */
-    NPB_FOR_BEGIN(R_RANK_FOR_1)
     #pragma omp for schedule(static)
     for( i=0; i<NUM_KEYS; i++ )
         work_buff[key_array[i] >> shift]++;
-    NPB_FOR_END()
 
 /*  Accumulative bucket sizes are the bucket pointers.
     These are global sizes accumulated upon to each bucket */
@@ -672,14 +656,12 @@ void rank( int iteration )
 
 
 /*  Sort into appropriate bucket */
-    NPB_FOR_BEGIN(R_RANK_FOR_2)
     #pragma omp for schedule(static)
     for( i=0; i<NUM_KEYS; i++ )  
     {
         k = key_array[i];
         key_buff2[bucket_ptrs[k >> shift]++] = k;
     }
-    NPB_FOR_END()
 
 /*  The bucket pointers now point to the final accumulated sizes */
     if (myid < num_procs-1) {
@@ -695,10 +677,8 @@ void rank( int iteration )
     a dynamic schedule should improve load balance, thus, performance     */
 
 #ifdef SCHED_CYCLIC
-    NPB_FOR_BEGIN(R_RANK_FOR_3)
     #pragma omp for schedule(static,1)
 #else
-    NPB_FOR_BEGIN(R_RANK_FOR_4)
     #pragma omp for schedule(dynamic)
 #endif
     for( i=0; i< NUM_BUCKETS; i++ ) {
@@ -727,7 +707,6 @@ void rank( int iteration )
             key_buff_ptr[k] += key_buff_ptr[k-1];
 
     }
-    NPB_FOR_END()
 
 #else /*USE_BUCKETS*/
 
@@ -746,7 +725,6 @@ void rank( int iteration )
     own indexes to determine how many of each there are: their
     individual population                                       */
 
-    NPB_FOR_BEGIN(R_RANK_FOR_5)
     #pragma omp for nowait schedule(static)
     for( i=0; i<NUM_KEYS; i++ )
         work_buff[key_buff_ptr2[i]]++;  /* Now they have individual key   */
@@ -758,22 +736,18 @@ void rank( int iteration )
     for( i=0; i<MAX_KEY-1; i++ )   
         work_buff[i+1] += work_buff[i];
 
-    NPB_FOR_END()
     #pragma omp barrier
 
 /*  Accumulate the global key population */
     for( k=1; k<num_procs; k++ ) {
-        if (k == 1 && myid == 0) npb_time_start(R_RANK_ACCUMULATE);
         #pragma omp for nowait schedule(static)
         for( i=0; i<MAX_KEY; i++ )
             key_buff_ptr[i] += key_buff1_aptr[k][i];
     }
-    if (num_procs > 1 && myid == 0) npb_time_stop(R_RANK_ACCUMULATE);
 
 #endif /*USE_BUCKETS*/
 
   } /*omp parallel*/
-    NPB_PARALLEL_END()
     if (npb_rank_timing) npb_time_end();
 
 /* This is the partial verify test section */
@@ -894,8 +868,6 @@ void rank( int iteration )
     }
 
 
-
-
 /*  Make copies of rank info for use by full_verify: these variables
     in rank are local; making them global slows down the code, probably
     since they cannot be made register by compiler                        */
@@ -913,20 +885,9 @@ void rank( int iteration )
 int main( int argc, char **argv )
 {
 
-    int             i, iteration, timer_on;
+    int             i, iteration;
 
     double          timecounter;
-
-/*  Initialize timers  */
-    timer_on = npb_time_enabled();
-    timer_clear( 0 );
-    if (timer_on) {
-        timer_clear( 1 );
-        timer_clear( 2 );
-        timer_clear( 3 );
-    }
-
-    if (timer_on) timer_start( 3 );
 
 
 /*  Initialize the verification arrays if a valid class */
@@ -971,14 +932,12 @@ int main( int argc, char **argv )
 #endif
     printf( "\n" );
 
-    if (timer_on) timer_start( 1 );
 
 /*  Generate random number sequence and subsequent keys on all procs */
     create_seq( 314159265.00,                    /* Random number gen seed */
                 1220703125.00 );                 /* Random number gen mult */
 
     alloc_key_buff();
-    if (timer_on) timer_stop( 1 );
 
 
 /*  Do one interation for free (i.e., untimed) to guarantee initialization of  
@@ -992,7 +951,6 @@ int main( int argc, char **argv )
 
 /*  Start timer  */             
     npb_rank_timing = 1;
-    timer_start( 0 );
 
 
 /*  This is the main iteration */
@@ -1005,17 +963,12 @@ int main( int argc, char **argv )
 
 /*  End of timing, obtain maximum time of all processors */
     npb_rank_timing = 0;
-    timer_stop( 0 );
-    timecounter = timer_read( 0 );
+    timecounter = npb_time_total();
 
 
 /*  This tests that keys are in sequence: sorting of last ranked key seq
     occurs here, but is an untimed operation                             */
-    if (timer_on) timer_start( 2 );
     full_verify();
-    if (timer_on) timer_stop( 2 );
-
-    if (timer_on) timer_stop( 3 );
 
 
 /*  The final printout  */
@@ -1048,7 +1001,5 @@ int main( int argc, char **argv )
          /**************************/
 }        /*  E N D  P R O G R A M  */
          /**************************/
-
-
 
 

@@ -44,12 +44,10 @@ void init_locks()
   int i;
 
   // initialize locks in parallel
-  NPB_PARALLEL_FOR_BEGIN(R_INIT_LOCKS_AU_1)
   #pragma omp parallel for default(shared) private(i)
   for (i = 0; i < 8*LELT; i++) {
     omp_init_lock(&tlock[i]);
   }
-  NPB_PARALLEL_FOR_END()
 }
 
 
@@ -65,7 +63,6 @@ void transf(double tmor[], double tx[])
   // zero out tx on element boundaries
   col2(tx, (double *)tmult, ntot);
 
-  NPB_PARALLEL_FOR_BEGIN(R_TRANSF_AU_1)
   #pragma omp parallel for default(shared) private(il,j,ig,i,col,ije2,ije1, \
                        ig4,ig3,ig2,ig1,nnje,il4,il3,il2,il1,iface,ie,tmp)
   for (ie = 0; ie < nelt; ie++) {
@@ -269,7 +266,6 @@ void transf(double tmor[], double tx[])
       }
     }
   }
-  NPB_PARALLEL_FOR_END()
 }
 
 
@@ -286,19 +282,15 @@ void transfb(double tmor[], double tx[])
   int il1, il2, il3, il4, ig1, ig2, ig3, ig4, ie, iface, nnje;
   int ije1, ije2, col, i, j, ije, ig, il;
 
-  NPB_PARALLEL_BEGIN(R_TRANSFB_AU_1)
   #pragma omp parallel default(shared) private(il,j,ig,i,col,ije2,ije1,ig4, \
       ig3,ig2,ig1,nnje,il4,il3,il2,il1,iface,ie,ije,tmp,shift,temp,top,tmp1)
   {
 
-  NPB_FOR_BEGIN(R_TRANSFB_AU_2)
   #pragma omp for
   for (ie = 0; ie < nmor; ie++) {
     tmor[ie] = 0.0;
   }
-  NPB_FOR_END()
 
-  NPB_FOR_BEGIN(R_TRANSFB_AU_3)
   #pragma omp for nowait
   for (ie = 0; ie < nelt; ie++) {
     for (iface = 0; iface < NSIDES; iface++) {
@@ -557,10 +549,9 @@ void transfb(double tmor[], double tx[])
       }
     }
   }
-  NPB_FOR_END()
 
   }
-  NPB_PARALLEL_END() //end parallel
+  //end parallel
 }
 
 
@@ -833,18 +824,14 @@ void transfb_c(double tx[])
   const double third = 1.0/3.0;
   int il1, il2, il3, il4, ig1, ig2, ig3, ig4, ie, iface, col, j, ig, il;
 
-  NPB_PARALLEL_BEGIN(R_TRANSFB_C_AU_1)
   #pragma omp parallel default(shared) private(ie,iface,il1,il2, \
                                        il3,il4,ig1,ig2,ig3,ig4,col,j,ig,il) 
   {
-  NPB_FOR_BEGIN(R_TRANSFB_C_AU_2)
   #pragma omp for
   for (j = 0; j < nmor; j++) {
     tmort[j] = 0.0;
   }
-  NPB_FOR_END()
 
-  NPB_FOR_BEGIN(R_TRANSFB_C_AU_3)
   #pragma omp for nowait
   for (ie = 0; ie < nelt; ie++) {
     for (iface = 0; iface < NSIDES; iface++) {
@@ -922,10 +909,9 @@ void transfb_c(double tx[])
       }
     }
   }
-  NPB_FOR_END()
 
   }
-  NPB_PARALLEL_END() //end parallel
+  //end parallel
 }
 
 
@@ -939,25 +925,19 @@ void transfb_c_2(double tx[])
   const double third = 1.0/3.0;
   int il1, il2, il3, il4, ig1, ig2, ig3, ig4, ie, iface, col, j, ig, il;
 
-  NPB_PARALLEL_BEGIN(R_TRANSFB_C_2_AU_1)
   #pragma omp parallel default(shared) private(ie,iface,il1,il2, \
                                        il3,il4,ig1,ig2,ig3,ig4,col,j,ig,il)
   {
 
-  NPB_FOR_BEGIN(R_TRANSFB_C_2_AU_2)
   #pragma omp for nowait
   for (j = 0; j < nmor; j++) {
     tmort[j] = 0.0;
   }
-  NPB_FOR_END()
-  NPB_FOR_BEGIN(R_TRANSFB_C_2_AU_3)
   #pragma omp for
   for (j = 0; j < nmor; j++) {
     mormult[j] = 0.0;
   }
-  NPB_FOR_END()
 
-  NPB_FOR_BEGIN(R_TRANSFB_C_2_AU_4)
   #pragma omp for nowait
   for (ie = 0; ie < nelt; ie++) {
     for (iface = 0; iface < NSIDES; iface++) {
@@ -1052,8 +1032,7 @@ void transfb_c_2(double tx[])
       }
     }
   }
-  NPB_FOR_END()
 
   }
-  NPB_PARALLEL_END() //end parallel
+  //end parallel
 }

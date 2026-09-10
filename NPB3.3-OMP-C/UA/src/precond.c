@@ -58,7 +58,6 @@ void setuppc()
 
   rdtime = 1.0/dtime;
 
-  NPB_PARALLEL_FOR_BEGIN(R_SETUPPC_1)
   #pragma omp parallel for default(shared) private(ie,isize,i,j,k,q) 
   for (ie = 0; ie < nelt; ie++) {
     r_init(dpcelm[ie][0][0], NXYZ, 0.0);
@@ -78,7 +77,6 @@ void setuppc()
       }
     }
   }
-  NPB_PARALLEL_FOR_END()
 
   // do the stiffness summation
   dssum();
@@ -88,12 +86,10 @@ void setuppc()
 
   // compute preconditioner on mortar points. NOTE:  dpcmor for 
   // nonconforming cases will be corrected in subroutine setpcmo 
-  NPB_PARALLEL_FOR_BEGIN(R_SETUPPC_2)
   #pragma omp parallel for default(shared) private(i)
   for (i = 0; i < nmor; i++) {
     dpcmor[i] = 1.0/dpcmor[i];
   }
-  NPB_PARALLEL_FOR_END()
 }
 
 
@@ -133,7 +129,6 @@ void setpcmo_pre()
     }
   }
 
-  NPB_PARALLEL_FOR_BEGIN(R_SETPCMO_PRE_1)
   #pragma omp parallel for default(shared) private(element_size,i,j,p,temp, \
                                            mtemp,temp1,p0,ii,jj)
   for (element_size = 0; element_size < REFINE_MAX; element_size++) {
@@ -432,7 +427,6 @@ void setpcmo_pre()
     laplacian(temp, p0, element_size);
     transfb_cor_f(7, &pcmor_cor[element_size][6], temp);
   }
-  NPB_PARALLEL_FOR_END()
 }
 
 
@@ -444,17 +438,13 @@ void setpcmo()
 {
   int face2, nb1, nb2, sizei, imor, _enum, i, j, iel, iside, nn1, nn2;
 
-  NPB_PARALLEL_BEGIN(R_SETPCMO_1)
   #pragma omp parallel default(shared) private(imor,iel,iside,i) 
   {
-    NPB_FOR_BEGIN(R_SETPCMO_2)
     #pragma omp for nowait
     for (imor = 0; imor < nvertex; imor++) {
       ifpcmor[imor] = false;
     }
-    NPB_FOR_END()
 
-    NPB_FOR_BEGIN(R_SETPCMO_3)
     #pragma omp for
     for (iel = 0; iel < nelt; iel++) {
       for (iside = 0; iside < NSIDES; iside++) {
@@ -463,11 +453,9 @@ void setpcmo()
         } 
       } 
     }
-    NPB_FOR_END()
   }
-  NPB_PARALLEL_END() //end parallel
+  //end parallel
 
-  NPB_PARALLEL_FOR_BEGIN(R_SETPCMO_4)
   #pragma omp parallel for default(shared) private(iel,iside,sizei, \
                            imor,_enum,face2,nb1,nb2,i,j,nn1,nn2) 
   for (iel = 0; iel < nelt; iel++) {
@@ -590,7 +578,6 @@ void setpcmo()
       } 
     }
   }
-  NPB_PARALLEL_FOR_END()
 }
 
 

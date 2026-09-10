@@ -78,7 +78,6 @@ void mortar()
   count = -1;
 
   // assign mortar point indices to element vertices
-  NPB_PARALLEL_FOR_BEGIN(R_MORTAR_1)
   #pragma omp parallel for default(shared) private(iel,sumcb,ij1,ij2, \
                            cb,cb1,cb2,ntemp,ntemp1)
   for (iel = 0; iel < nelt; iel++) {
@@ -741,7 +740,6 @@ void mortar()
       }
     }
   }
-  NPB_PARALLEL_FOR_END()
 
   // end computing how many new mortar vertex points will be generated
   // on each element.
@@ -750,12 +748,10 @@ void mortar()
   // new mortar point indices are to be generated from element 0 to iel.
   // front[iel]=newc[0]+newc[1]+...+newc[iel]
 
-  NPB_PARALLEL_FOR_BEGIN(R_MORTAR_2)
   #pragma omp parallel for default(shared) private(iel)
   for (iel = 0; iel < nelt; iel++) {
     front[iel] = newc[iel];
   }
-  NPB_PARALLEL_FOR_END()
 
   parallel_add(front);
 
@@ -764,7 +760,6 @@ void mortar()
   // is shared by several elements, the mortar point index of it will only
   // be generated on the element with the lowest element index. 
 
-  NPB_PARALLEL_FOR_BEGIN(R_MORTAR_3)
   #pragma omp parallel for default(shared) private(iel,i,count)
   for (iel = 0; iel < nelt; iel++) {
     // compute the starting vertex mortar point index in element iel
@@ -778,7 +773,6 @@ void mortar()
       mortar_vertex(vassign[iel][i], iel, count);
     }
   }
-  NPB_PARALLEL_FOR_END()
 
   // nvertex records how many mortar indices are for element vertices.
   // It is used in the computation of the preconditioner.
@@ -813,7 +807,6 @@ void mortar()
   //            to the right or top part of edge n.
   // if_1_edge[iel][n]=true indicates that the size of iel is smaller than 
   //            that of its neighbor connected, neighbored by edge n only
-  NPB_PARALLEL_FOR_BEGIN(R_MORTAR_4)
   #pragma omp parallel for default(shared) private(iel,cb1,cb2,cb3,cb4,cb5 \
                                                   ,cb6,ntemp)
   for (iel = 0; iel < nelt; iel++) {
@@ -1351,19 +1344,16 @@ void mortar()
     // to be assigned to each element.
     newc[iel] = newe[iel]*3+newi[iel];
   }
-  NPB_PARALLEL_FOR_END()
 
   // Compute (potentially in parallel) front[iel], which records how 
   // many new mortar point indices are to be assigned (to conforming 
   // edges and conforming face interiors) from element 0 to iel.
   // front[iel]=newc[0]+newc[1]+...+newc[iel]
 
-  NPB_PARALLEL_FOR_BEGIN(R_MORTAR_5)
   #pragma omp parallel for default(shared) private(iel)
   for (iel = 0; iel < nelt; iel++) {
     front[iel] = newc[iel];
   }
-  NPB_PARALLEL_FOR_END()
 
   parallel_add(front);
 
@@ -1373,7 +1363,6 @@ void mortar()
   // Generate (potentially in parallel) new mortar point indices on 
   // each conforming element face. On each face, first visit all 
   // conforming edges, and then the face interior.
-  NPB_PARALLEL_FOR_BEGIN(R_MORTAR_6)
   #pragma omp parallel for default(shared) private(iel,count,i,cb1,ne, \
               space,ie,edge_g,face2,ie2,ntemp,ii,jj,jface,cb,mor_v)
   for (iel = 0; iel < nelt; iel++) {
@@ -1489,11 +1478,9 @@ void mortar()
       }
     }
   }
-  NPB_PARALLEL_FOR_END()
 
   // for edges on nonconforming faces, copy the mortar points indices
   // from neighbors.
-  NPB_PARALLEL_FOR_BEGIN(R_MORTAR_7)
   #pragma omp parallel for default(shared) \
               private(iel,i,cb,jface,iii,jjj,ntemp,ii,jj)
   for (iel = 0; iel < nelt; iel++) {
@@ -1527,7 +1514,6 @@ void mortar()
       }
     }
   }
-  NPB_PARALLEL_FOR_END()
 }
 
        

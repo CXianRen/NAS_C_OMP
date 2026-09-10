@@ -12,7 +12,6 @@
 #include "npbparams.h"
 #include "type.h"
 #include "region_timers.h"
-#include "region_info.h"
 
 //---------------------------------------------------------------------
 // parameters which can be overridden in runtime config file
@@ -123,19 +122,6 @@ extern int mthreadnum, iam;
 //---------------------------------------------------------------------
 /* common/timer/ */
 extern double maxtime;
-extern logical timeron;
-#define t_total   1
-#define t_rhsx    2
-#define t_rhsy    3
-#define t_rhsz    4
-#define t_rhs     5
-#define t_jacld   6
-#define t_blts    7
-#define t_jacu    8
-#define t_buts    9
-#define t_add     10
-#define t_l2norm  11
-#define t_last    11
 
 
 void read_input();

@@ -34,7 +34,6 @@
 
 #include "header.h"
 #include "work_lhs.h"
-#include "timers.h"
 
 //---------------------------------------------------------------------
 // Performs line solves in Y direction by first factoring
@@ -52,7 +51,6 @@ void y_solve()
   //---------------------------------------------------------------------
   //---------------------------------------------------------------------
 
-  if (timeron) timer_start(t_ysolve);
 
   //---------------------------------------------------------------------
   //---------------------------------------------------------------------
@@ -67,7 +65,6 @@ void y_solve()
   // Compute the indices for storing the tri-diagonal matrix;
   // determine a (labeled f) and n jacobians for cell c
   //---------------------------------------------------------------------
-  NPB_PARALLEL_FOR_BEGIN(R_Y_SOLVE_PARALLEL)
   #pragma omp parallel for default(shared) shared(jsize) private(i,j,k,m,n)
   for (k = 1; k <= grid_points[2]-2; k++) {
     for (i = 1; i <= grid_points[0]-2; i++) {
@@ -391,6 +388,4 @@ void y_solve()
       }
     }
   }
-  NPB_PARALLEL_FOR_END()
-  if (timeron) timer_stop(t_ysolve);
 }

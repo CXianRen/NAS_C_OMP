@@ -14,7 +14,8 @@ NPB_LDFLAGS ?= -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864
 ALL_BENCHMARKS := BT CG DC EP FT IS LU MG SP UA
 ALL_CLASSES := S W A B C D E
 RAND_BENCHMARKS := BT CG DC EP FT MG
-COMMON_SOURCES := $(addprefix $(NPB_DIR)/common/,c_print_results.c c_timers.c print_results.c wtime.c)
+COMMON_SOURCES := $(addprefix $(NPB_DIR)/common/,c_print_results.c c_timers.c region_timers.c print_results.c wtime.c)
+COMMON_HEADERS := $(wildcard $(NPB_DIR)/common/*.h)
 
 $(foreach b,$(ALL_BENCHMARKS),\
   $(eval $(b)_SOURCES := $(wildcard $(NPB_DIR)/$(b)/src/*.c) $(COMMON_SOURCES) \
@@ -44,7 +45,7 @@ TARGETS := $(foreach b,$(KNOWN_BENCHMARKS),\
 SETPARAMS := $(BUILD_DIR)/setparams
 MAKEDEF := $(BUILD_DIR)/config/make.def
 
-.PHONY: all check clean
+.PHONY: all check clean time-test
 
 all: check $(TARGETS)
 $(TARGETS): | check
@@ -68,7 +69,7 @@ $(MAKEDEF): Makefile
 		'RAND = randdp' > "$@"
 
 define BUILD_BINARY
-$(BIN_DIR)/$(1).$(2): $$($(1)_SOURCES) $(SETPARAMS) $(MAKEDEF) Makefile
+$(BIN_DIR)/$(1).$(2): $$($(1)_SOURCES) $(COMMON_HEADERS) $(wildcard $(NPB_DIR)/$(1)/src/*.h) $(SETPARAMS) $(MAKEDEF) Makefile
 	@mkdir -p "$(BUILD_DIR)/$(1).$(2)" "$(BIN_DIR)"
 	@cd "$(BUILD_DIR)/$(1).$(2)" && ../setparams "$(1)" "$(2)"
 	$(CC) $(NPB_CFLAGS) \
@@ -81,3 +82,7 @@ $(foreach b,$(ALL_BENCHMARKS),\
 
 clean:
 	rm -rf "$(BUILD_DIR)" "$(BIN_DIR)"
+
+time-test:
+	python3 $(NPB_DIR)/tests/test_region_timers.py --cc "$(CC)"
+	python3 $(NPB_DIR)/tests/check_region_reports.py

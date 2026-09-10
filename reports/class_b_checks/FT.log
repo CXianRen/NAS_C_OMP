@@ -1,0 +1,59 @@
+
+
+ NAS Parallel Benchmarks (NPB3.3-OMP-C) - FT Benchmark
+
+ Size                :  512x 256x 256
+ Iterations                  :      3
+ Number of available threads :      8
+
+ T =    1     Checksum =    5.177643571579E+02    5.077803458597E+02
+ T =    2     Checksum =    5.154521291263E+02    5.088249431599E+02
+ T =    3     Checksum =    5.146409228650E+02    5.096208912659E+02
+ class = U
+
+
+ FT Benchmark Completed.
+ Class           =                        U
+ Size            =            512x 256x 256
+ Iterations      =                        3
+ Time in seconds =                     1.02
+ Total threads   =                        8
+ Avail threads   =                        8
+ Mop/s total     =                 17444.01
+ Mop/s/thread    =                  2180.50
+ Operation type  =           floating point
+ Verification    =             UNSUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              10 Sep 2026
+
+ Compile options:
+    CC           = gcc
+    CLINK        = gcc
+    C_LIB        = -lm
+    C_INC        = (none)
+    CFLAGS       = -O3 -fopenmp -mcmodel=medium -mlarge-data-t...
+    CLINKFLAGS   = -fopenmp -mcmodel=medium -mlarge-data-thres...
+    RAND         = randdp
+
+--------------------------------------
+ Please send all errors/feedbacks to:
+ Center for Manycore Programming
+ cmp@aces.snu.ac.kr
+ http://aces.snu.ac.kr
+--------------------------------------
+
+
+time report
+unit: seconds
+iteration total: 0.622981060 s
+step %: accumulated region time / iteration total (average time-step basis)
+parallel region evolve:226  0.124074186 s  step: 19.916%
+    for region evolve:226  0.124074186 s  step: 19.916%
+parallel region cffts1:443  0.189716741 s  step: 30.453%
+    for region cffts1:443  0.189716741 s  step: 30.453%
+parallel region cffts2:478  0.150081801 s  step: 24.091%
+    for region cffts2:478  0.150081801 s  step: 24.091%
+parallel region cffts3:513  0.158813318 s  step: 25.492%
+    for region cffts3:513  0.158813318 s  step: 25.492%
+parallel region checksum:678  0.000258576 s  step: 0.042%
+    for region checksum:683-690 (nowait)  0.000049625 s  step: 0.008%

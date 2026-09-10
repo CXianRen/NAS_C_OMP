@@ -52,6 +52,7 @@
 #include "npbparams.h"
 #include "randdp.h"
 #include "timers.h"
+#include "region_info.h"
 #include "print_results.h"
 
 #define MAX(X,Y)  (((X) > (Y)) ? (X) : (Y))
@@ -84,14 +85,7 @@ int main(int argc, char *argv[])
   double dum[3] = {1.0, 1.0, 1.0};
   char   size[16];
 
-  FILE *fp;
-
-  if ((fp = fopen("timer.flag", "r")) == NULL) {
-    timers_enabled = false;
-  } else {
-    timers_enabled = true;
-    fclose(fp);
-  }
+  timers_enabled = npb_time_enabled();
 
   //--------------------------------------------------------------------
   //  Because the size of the problem is too large to store in a 32-bit
@@ -174,12 +168,15 @@ int main(int argc, char *argv[])
 
   k_offset = -1;
 
+  npb_time_begin();
+  NPB_PARALLEL_BEGIN(R_MAIN_PARALLEL_1)
   #pragma omp parallel default(shared) private(k,kk,t1,t2,t3,t4,i,ik,x1,x2,l)
   {
     for (i = 0; i < NQ; i++) {
       qq[i] = 0.0;
     }
 
+    NPB_FOR_BEGIN(R_MAIN_FOR_1)
     #pragma omp for reduction(+:sx,sy) nowait
     for (k = 1; k <= np; k++) {
       kk = k_offset + k; 
@@ -227,12 +224,15 @@ int main(int argc, char *argv[])
 
       if (timers_enabled) timer_stop(1);
     }
+    NPB_FOR_END()
 
     for (i = 0; i < NQ; i++) {
       #pragma omp atomic
       q[i] += qq[i];
     }
   }
+  NPB_PARALLEL_END()
+  npb_time_end();
 
   for (i = 0; i < NQ; i++) {
     gc = gc + q[i];
@@ -292,15 +292,7 @@ int main(int argc, char *argv[])
       verified, NPBVERSION, COMPILETIME, CS1,
       CS2, CS3, CS4, CS5, CS6, CS7);
 
-  if (timers_enabled) {
-    if (tm <= 0.0) tm = 1.0;
-    tt = timer_read(0);
-    printf("\nTotal time:     %9.3lf (%6.2lf)\n", tt, tt*100.0/tm);
-    tt = timer_read(1);
-    printf("Gaussian pairs: %9.3lf (%6.2lf)\n", tt, tt*100.0/tm);
-    tt = timer_read(2);
-    printf("Random numbers: %9.3lf (%6.2lf)\n", tt, tt*100.0/tm);
-  }
+  npb_time_report();
 
   return 0;
 }

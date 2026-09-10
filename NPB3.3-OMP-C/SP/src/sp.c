@@ -98,37 +98,16 @@ double lhsm[IMAXP+1][IMAXP+1][5];
 int main(int argc, char *argv[])
 {
   int i, niter, step, n3;
-  double mflops, t, tmax, trecs[t_last+1];
+  double mflops, t, tmax;
   logical verified;
   char Class;
-  char *t_names[t_last+1];
 
   //---------------------------------------------------------------------
   // Read input file (if it exists), else take
   // defaults from parameters
   //---------------------------------------------------------------------
   FILE *fp;
-  if ((fp = fopen("timer.flag", "r")) != NULL) {
-    timeron = true;
-    t_names[t_total] = "total";
-    t_names[t_rhsx] = "rhsx";
-    t_names[t_rhsy] = "rhsy";
-    t_names[t_rhsz] = "rhsz";
-    t_names[t_rhs] = "rhs";
-    t_names[t_xsolve] = "xsolve";
-    t_names[t_ysolve] = "ysolve";
-    t_names[t_zsolve] = "zsolve";
-    t_names[t_rdis1] = "redist1";
-    t_names[t_rdis2] = "redist2";
-    t_names[t_tzetar] = "tzetar";
-    t_names[t_ninvr] = "ninvr";
-    t_names[t_pinvr] = "pinvr";
-    t_names[t_txinvr] = "txinvr";
-    t_names[t_add] = "add";
-    fclose(fp);
-  } else {
-    timeron = false;
-  }
+  timeron = npb_time_enabled();
 
   printf("\n\n NAS Parallel Benchmarks (NPB3.3-OMP-C) - SP Benchmark\n\n");
 
@@ -196,6 +175,7 @@ int main(int argc, char *argv[])
   for (i = 1; i <= t_last; i++) {
     timer_clear(i);
   }
+  npb_time_begin();
   timer_start(1);
 
   for (step = 1; step <= niter; step++) {
@@ -207,6 +187,7 @@ int main(int argc, char *argv[])
   }
 
   timer_stop(1);
+  npb_time_end();
   tmax = timer_read(1);
 
   verify(niter, &Class, &verified);
@@ -228,33 +209,7 @@ int main(int argc, char *argv[])
                 verified, NPBVERSION,COMPILETIME, CS1, CS2, CS3, CS4, CS5, 
                 CS6, "(none)");
 
-  //---------------------------------------------------------------------
-  // More timers
-  //---------------------------------------------------------------------
-  if (timeron) {
-    for (i = 1; i <= t_last; i++) {
-      trecs[i] = timer_read(i);
-    }
-    if (tmax == 0.0) tmax = 1.0;
-
-    printf("  SECTION   Time (secs)\n");
-    for (i = 1; i <= t_last; i++) {
-      printf("  %-8s:%9.3f  (%6.2f%%)\n", 
-          t_names[i], trecs[i], trecs[i]*100./tmax);
-      if (i == t_rhs) {
-        t = trecs[t_rhsx] + trecs[t_rhsy] + trecs[t_rhsz];
-        printf("    --> %8s:%9.3f  (%6.2f%%)\n", "sub-rhs", t, t*100./tmax);
-        t = trecs[t_rhs] - t;
-        printf("    --> %8s:%9.3f  (%6.2f%%)\n", "rest-rhs", t, t*100./tmax);
-      } else if (i == t_zsolve) {
-        t = trecs[t_zsolve] - trecs[t_rdis1] - trecs[t_rdis2];
-        printf("    --> %8s:%9.3f  (%6.2f%%)\n", "sub-zsol", t, t*100./tmax);
-      } else if (i == t_rdis2) {
-        t = trecs[t_rdis1] + trecs[t_rdis2];
-        printf("    --> %8s:%9.3f  (%6.2f%%)\n", "redist", t, t*100./tmax);
-      }
-    }
-  }
+  npb_time_report();
 
   return 0;
 }

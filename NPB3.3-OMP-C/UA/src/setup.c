@@ -238,6 +238,7 @@ void geom1()
     xfrac[i] = zgm1[i]*0.5 + 0.5;
   }
 
+  NPB_PARALLEL_FOR_BEGIN(R_GEOM1_1)
   #pragma omp parallel for default(shared) private(isize,temp,temp1,temp2, \
                                                    k,j,i,dtemp)
   for (isize = 0; isize < REFINE_MAX; isize++) {
@@ -260,7 +261,9 @@ void geom1()
       }
     }
   }
+  NPB_PARALLEL_FOR_END()
 
+  NPB_PARALLEL_FOR_BEGIN(R_GEOM1_2)
   #pragma omp parallel for default(shared) private(ntemp,i,j,iel)
   for (iel = 0; iel < LELT; iel++) {
     ntemp = LX1*LX1*LX1*iel;
@@ -275,6 +278,7 @@ void geom1()
       }
     }
   }
+  NPB_PARALLEL_FOR_END()
 }
 
 
@@ -310,10 +314,12 @@ void prepwork()
   ntot = nelt*NXYZ;
   rdlog2 = 1.0/log(2.0);
 
+  NPB_PARALLEL_BEGIN(R_PREPWORK_1)
   #pragma omp parallel default(shared) private(i,j,iel,iface,cb)
   {
 
   // calculate the refinement levels of each element
+  NPB_FOR_BEGIN(R_PREPWORK_2)
   #pragma omp for nowait
   for (iel = 0; iel < nelt; iel++) {
     size_e[iel] = (int)(-log(xc[iel][1]-xc[iel][0])*rdlog2+1.e-8) - 1;
@@ -327,13 +333,17 @@ void prepwork()
       facev(tmult[iel], iface, 0.0);
     }
   }
+  NPB_FOR_END()
 
   // masks for domain boundary at mortar 
+  NPB_FOR_BEGIN(R_PREPWORK_3)
   #pragma omp for
   for (iel = 0; iel < nmor; iel++) {
     tmmor[iel] = 1.0;
   }
+  NPB_FOR_END()
 
+  NPB_FOR_BEGIN(R_PREPWORK_4)
   #pragma omp for nowait
   for (iel = 0; iel < nelt; iel++) {
     for (iface = 0; iface < NSIDES; iface++) {
@@ -402,8 +412,10 @@ void prepwork()
       }
     }
   }
+  NPB_FOR_END()
 
-  } //end parallel
+  }
+  NPB_PARALLEL_END() //end parallel
 }
             
 

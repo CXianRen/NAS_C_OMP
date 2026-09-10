@@ -1,0 +1,78 @@
+
+
+ NAS Parallel Benchmarks (NPB3.3-OMP-C) - LU Benchmark
+
+ Size:  102x 102x 102
+ Iterations:                      3
+ Number of available threads:     8
+
+ Time step    1
+ Time step    3
+ Unknown class
+ RMS-norms of residual
+           1   2.1659219023795E+05
+           2   2.2173536466050E+04
+           3   5.5130011222739E+04
+           4   4.6750195807137E+04
+           5   3.0068636763900E+05
+ RMS-norms of solution error
+           1   4.8560518604183E+02
+           2   4.2725547454461E+01
+           3   1.2252034375495E+02
+           4   1.0603708993378E+02
+           5   8.4620130856226E+02
+ Surface integral
+               7.6373842072139E+02
+ No reference values provided
+No verification performed
+
+
+ LU Benchmark Completed.
+ Class           =                        U
+ Size            =            102x 102x 102
+ Iterations      =                        3
+ Time in seconds =                     0.26
+ Total threads   =                        8
+ Avail threads   =                        8
+ Mop/s total     =                 23311.02
+ Mop/s/thread    =                  2913.88
+ Operation type  =           floating point
+ Verification    =             UNSUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              10 Sep 2026
+
+ Compile options:
+    CC           = gcc
+    CLINK        = gcc
+    C_LIB        = -lm
+    C_INC        = (none)
+    CFLAGS       = -O3 -fopenmp -mcmodel=medium -mlarge-data-t...
+    CLINKFLAGS   = -fopenmp -mcmodel=medium -mlarge-data-thres...
+    RAND         = (none)
+
+--------------------------------------
+ Please send all errors/feedbacks to:
+ Center for Manycore Programming
+ cmp@aces.snu.ac.kr
+ http://aces.snu.ac.kr
+--------------------------------------
+
+
+time report
+unit: seconds
+iteration total: 0.256820583 s
+step %: accumulated region time / iteration total (average time-step basis)
+parallel region l2norm:60  0.000844134 s  step: 0.329%
+    for region l2norm:66-76 (nowait)  0.000836194 s  step: 0.326%
+parallel region rhs:59  0.076757121 s  step: 29.887%
+    for region rhs:65  0.012253314 s  step: 4.771%
+    for region rhs:89-214 (nowait)  0.011997172 s  step: 4.671%
+    for region rhs:216  0.025544240 s  step: 9.946%
+    for region rhs:351-473 (nowait)  0.026345210 s  step: 10.258%
+parallel region ssor:137  0.179166952 s  step: 69.763%
+    for region blts:70-207 (nowait)  0.029877284 s  step: 11.634%
+    for region buts:68-207 (nowait)  0.035549309 s  step: 13.842%
+    for region jacld:56-339 (nowait)  0.024657816 s  step: 9.601%
+    for region jacu:56-359 (nowait)  0.025568252 s  step: 9.956%
+    for region ssor:144-163 (nowait)  0.003693734 s  step: 1.438%
+    for region ssor:229-239 (nowait)  0.006522638 s  step: 2.540%

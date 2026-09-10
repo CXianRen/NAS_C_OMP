@@ -1,0 +1,79 @@
+
+
+ NAS Parallel Benchmarks (NPB3.3-OMP-C) - BT Benchmark
+
+ No input file inputbt.data. Using compiled defaults
+ Size:  102x 102x 102
+ Iterations:    3       dt:   0.0003000
+ Number of available threads:     8
+
+ Time step    1
+ Unknown class
+ RMS-norms of residual
+           1 1.7995944804926E+05
+           2 1.9338007519319E+04
+           3 4.5917068314252E+04
+           4 3.8655801712328E+04
+           5 2.3408001634625E+05
+ RMS-norms of solution error
+           1 4.4787150367954E+02
+           2 3.8562498918837E+01
+           3 1.1285725606581E+02
+           4 9.7916951179089E+01
+           5 7.9837504729021E+02
+ No reference values provided
+ No verification performed
+
+
+ BT Benchmark Completed.
+ Class           =                        U
+ Size            =            102x 102x 102
+ Iterations      =                        3
+ Time in seconds =                     0.54
+ Total threads   =                        8
+ Avail threads   =                        8
+ Mop/s total     =                 19402.36
+ Mop/s/thread    =                  2425.29
+ Operation type  =           floating point
+ Verification    =             UNSUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              10 Sep 2026
+
+ Compile options:
+    CC           = gcc
+    CLINK        = gcc
+    C_LIB        = -lm
+    C_INC        = (none)
+    CFLAGS       = -O3 -fopenmp -mcmodel=medium -mlarge-data-t...
+    CLINKFLAGS   = -fopenmp -mcmodel=medium -mlarge-data-thres...
+    RAND         = (none)
+
+--------------------------------------
+ Please send all errors/feedbacks to:
+ Center for Manycore Programming
+ cmp@aces.snu.ac.kr
+ http://aces.snu.ac.kr
+--------------------------------------
+
+
+time report
+unit: seconds
+iteration total: 0.542856899 s
+step %: accumulated region time / iteration total (average time-step basis)
+parallel region add:47  0.013307141 s  step: 2.451%
+    for region add:47  0.013307141 s  step: 2.451%
+parallel region compute_rhs:45  0.107457475 s  step: 19.795%
+    for region compute_rhs:53-76 (nowait)  0.007899493 s  step: 1.455%
+    for region compute_rhs:78  0.016785725 s  step: 3.092%
+    for region compute_rhs:96-207 (nowait)  0.014575908 s  step: 2.685%
+    for region compute_rhs:209  0.016490223 s  step: 3.038%
+    for region compute_rhs:321  0.025896107 s  step: 4.770%
+    for region compute_rhs:380-430 (nowait)  0.011379830 s  step: 2.096%
+    for region compute_rhs:432  0.006358770 s  step: 1.171%
+    for region compute_rhs:447-457 (nowait)  0.005260357 s  step: 0.969%
+parallel region x_solve:72  0.119209548 s  step: 21.960%
+    for region x_solve:72  0.119209548 s  step: 21.960%
+parallel region y_solve:71  0.140515145 s  step: 25.884%
+    for region y_solve:71  0.140515145 s  step: 25.884%
+parallel region z_solve:71  0.162351944 s  step: 29.907%
+    for region z_solve:71  0.162351944 s  step: 29.907%

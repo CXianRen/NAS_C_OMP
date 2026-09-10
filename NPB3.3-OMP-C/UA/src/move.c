@@ -47,9 +47,11 @@ void move()
   nr_init_omp((int *)sje_new, n1, -1);
   nr_init_omp((int *)ijel_new, n2, -1);
 
+  NPB_PARALLEL_BEGIN(R_MOVE_1)
   #pragma omp parallel default(shared) private(iel,i,iside,jface,cb,ntemp, \
                                                ii1,ii2) 
   {
+  NPB_FOR_BEGIN(R_MOVE_2)
   #pragma omp for
   for (iel = 0; iel < nelt; iel++) {
     i = mt_to_id[iel];
@@ -98,7 +100,9 @@ void move()
 
     copy(ta2[iel][0][0], ta1[i][0][0], NXYZ);
   }
+  NPB_FOR_END()
 
+  NPB_FOR_BEGIN(R_MOVE_3)
   #pragma omp for
   for (iel = 0; iel < nelt; iel++) {
     copy(xc[iel], xc_new[iel], 8);
@@ -113,5 +117,7 @@ void move()
     id_to_mt[iel] = iel;
     tree[iel] = treenew[iel];
   }
-  } //end parallel
+  NPB_FOR_END()
+  }
+  NPB_PARALLEL_END() //end parallel
 }

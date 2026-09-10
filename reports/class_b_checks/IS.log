@@ -1,0 +1,59 @@
+
+
+ NAS Parallel Benchmarks (NPB3.3-OMP) - IS Benchmark
+
+ Size:  33554432  (class B)
+ Iterations:  10
+ Number of available threads:  8
+
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        B
+ Size            =                 33554432
+ Iterations      =                       10
+ Time in seconds =                     0.21
+ Total threads   =                        8
+ Avail threads   =                        8
+ Mop/s total     =                  1568.44
+ Mop/s/thread    =                   196.05
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              10 Sep 2026
+
+ Compile options:
+    CC           = gcc
+    CLINK        = gcc
+    C_LIB        = -lm
+    C_INC        = (none)
+    CFLAGS       = -O3 -fopenmp -mcmodel=medium -mlarge-data-t...
+    CLINKFLAGS   = -fopenmp -mcmodel=medium -mlarge-data-thres...
+
+--------------------------------------
+ Please send all errors/feedbacks to:
+ Center for Manycore Programming
+ cmp@aces.snu.ac.kr
+ http://aces.snu.ac.kr
+--------------------------------------
+
+time report
+unit: seconds
+iteration total: 0.213854705 s
+step %: accumulated region time / iteration total (average time-step basis)
+parallel region rank:630  0.213852136 s  step: 99.999%
+    for region rank:654  0.038144737 s  step: 17.837%
+    for region rank:676  0.140113764 s  step: 65.518%
+    for region rank:702  0.035381022 s  step: 16.544%

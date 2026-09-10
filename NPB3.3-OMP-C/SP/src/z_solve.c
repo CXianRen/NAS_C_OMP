@@ -50,6 +50,7 @@ void z_solve()
   //---------------------------------------------------------------------
 
   if (timeron) timer_start(t_zsolve);
+  NPB_PARALLEL_FOR_BEGIN(R_Z_SOLVE_PARALLEL)
   #pragma omp parallel for default(shared) private(i,j,k,k1,k2,m, \
                                                    ru1,fac1,fac2)
   for (j = 1; j <= ny2; j++) {
@@ -301,6 +302,7 @@ void z_solve()
       }
     }
   }
+  NPB_PARALLEL_FOR_END()
   if (timeron) timer_stop(t_zsolve);
 
   tzetar();

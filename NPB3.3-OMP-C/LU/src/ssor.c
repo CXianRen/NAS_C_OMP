@@ -53,7 +53,7 @@ int mthreadnum, iam;
 // to perform pseudo-time stepping SSOR iterations
 // for five nonlinear pde's.
 //---------------------------------------------------------------------
-void ssor(int niter)
+void ssor(int niter, logical timed_iterations)
 {
   //---------------------------------------------------------------------
   // local variables
@@ -119,6 +119,7 @@ void ssor(int niter)
   for (i = 1; i <= t_last; i++) {
     timer_clear(i);
   }
+  if (timed_iterations) npb_time_begin();
   timer_start(1);
 
   //---------------------------------------------------------------------
@@ -132,12 +133,14 @@ void ssor(int niter)
     //---------------------------------------------------------------------
     // perform SSOR iteration
     //---------------------------------------------------------------------
+    NPB_PARALLEL_BEGIN(R_SSOR_PARALLEL)
     #pragma omp parallel default(shared) private(i,j,k,m,tmp2) \
                 shared(ist,iend,jst,jend,nx,ny,nz,nx0,ny0,omega)
     {
     #pragma omp master
     if (timeron) timer_start(t_rhs);
     tmp2 = dt;
+    NPB_FOR_BEGIN(R_SSOR_FOR_1)
     #pragma omp for nowait
     for (k = 1; k < nz - 1; k++) {
       for (j = jst; j < jend; j++) {
@@ -157,6 +160,7 @@ void ssor(int niter)
     iam = 0;
     iam = omp_get_thread_num();
     if (iam <= mthreadnum) isync[iam] = 0;
+    NPB_FOR_END()
     #pragma omp barrier
 
     for (k = 1; k < nz -1; k++) {
@@ -221,6 +225,7 @@ void ssor(int niter)
     #pragma omp master
     if (timeron) timer_start(t_add);
     tmp2 = tmp;
+    NPB_FOR_BEGIN(R_SSOR_FOR_2)
     #pragma omp for nowait
     for (k = 1; k < nz-1; k++) {
       for (j = jst; j < jend; j++) {
@@ -231,7 +236,9 @@ void ssor(int niter)
         }
       }
     }
+    NPB_FOR_END()
     } //end parallel
+    NPB_PARALLEL_END()
     if (timeron) timer_stop(t_add);
 
     //---------------------------------------------------------------------
@@ -307,6 +314,7 @@ void ssor(int niter)
   }
 
   timer_stop(1);
+  if (timed_iterations) npb_time_end();
   maxtime = timer_read(1);
 }
 

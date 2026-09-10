@@ -109,10 +109,12 @@ void adaptation(logical *ifmortar, int step)
 
   // skip[iel]=true indicates an element no longer exists (because it
   // got merged)
+  NPB_PARALLEL_FOR_BEGIN(R_ADAPTATION_1)
   #pragma omp parallel for default(shared) private(iel)
   for (iel = 0; iel < nelt; iel++) {
     skip[iel] = false;
   }
+  NPB_PARALLEL_FOR_END()
 
   neltold = nelt;
 
@@ -145,11 +147,13 @@ void adaptation(logical *ifmortar, int step)
   //                element index
   // id_to_mt(iel)  takes as argument the actual element index and returns the
   //                morton index
+  NPB_PARALLEL_FOR_BEGIN(R_ADAPTATION_2)
   #pragma omp parallel for default(shared) private(miel,iel)
   for (miel = 0; miel < nelt; miel++) {
     iel = mt_to_id[miel];
     id_to_mt[iel] = miel;
   }
+  NPB_PARALLEL_FOR_END()
 
   // Reorder the elements in the order of the morton curve. After the move 
   // subroutine the element indices are  the same as the morton indices
@@ -184,8 +188,10 @@ static void do_coarsen(logical *if_coarsen, int *icoarsen, int neltold)
   // ifcoa[miel]=true refers to element miel(mortar index) will be
   //                  coarsened
 
+  NPB_PARALLEL_BEGIN(R_DO_COARSEN_1)
   #pragma omp parallel default(shared) private(iel)
   {
+    NPB_FOR_BEGIN(R_DO_COARSEN_2)
     #pragma omp for nowait
     for (iel = 0; iel < nelt; iel++) {
       mt_to_id_old[iel] = mt_to_id[iel];
@@ -195,10 +201,13 @@ static void do_coarsen(logical *if_coarsen, int *icoarsen, int neltold)
     for (iel = 0; iel < neltold; iel++) {
       ifcoa_id[iel] = false;
     }
+    NPB_FOR_END()
   }
+  NPB_PARALLEL_END()
 
   // Check whether the potential coarsening will make neighbor, 
   // and neighbor's neighbor....break grid restriction
+  NPB_PARALLEL_FOR_BEGIN(R_DO_COARSEN_3)
   #pragma omp parallel for default(shared) private(miel,iel,ic, \
           ntp,parent,test,test1,i,test2,test3) shared(if_coarsen)
   for (miel = 0; miel < nelt; miel++) {
@@ -269,7 +278,8 @@ static void do_coarsen(logical *if_coarsen, int *icoarsen, int neltold)
         }
       } 
     } 
-  } 
+  }
+  NPB_PARALLEL_FOR_END()
 
   // compute front[iel], how many elements will be coarsened before iel
   // (including iel)
@@ -282,6 +292,7 @@ static void do_coarsen(logical *if_coarsen, int *icoarsen, int neltold)
   // element's front-left-bottom-child) to be coarsened.
 
   // create array mt_to_id to convert actual element index to morton index
+  NPB_PARALLEL_FOR_BEGIN(R_DO_COARSEN_4)
   #pragma omp parallel for default(shared) private(miel,iel,mielnew)
   for (miel = 0; miel < nelt; miel++) {
     iel = mt_to_id_old[miel];
@@ -295,8 +306,10 @@ static void do_coarsen(logical *if_coarsen, int *icoarsen, int neltold)
       mt_to_id[mielnew] = iel;
     }
   }
+  NPB_PARALLEL_FOR_END()
 
   // perform the coarsening procedure (potentially in parallel)
+  NPB_PARALLEL_FOR_BEGIN(R_DO_COARSEN_5)
   #pragma omp parallel for default(shared) private(index,miel,iel,ntp)
   for (index = 0; index < num_coarsen; index++) {
     miel = action[index];
@@ -313,6 +326,7 @@ static void do_coarsen(logical *if_coarsen, int *icoarsen, int neltold)
     // merge them to be the parent
     merging(ntp);
   }
+  NPB_PARALLEL_FOR_END()
 
   nelt = nelt - num_coarsen*7;
   *icoarsen = *icoarsen + num_coarsen*8;
@@ -334,6 +348,7 @@ static void do_refine(logical *ifmortar, int *irefine)
   int cb, cbctemp[6];
 
   // initialize
+  NPB_PARALLEL_FOR_BEGIN(R_DO_REFINE_1)
   #pragma omp parallel for default(shared) private(miel)
   for (miel = 0; miel < nelt; miel++) {
     mt_to_id_old[miel] = mt_to_id[miel];
@@ -345,6 +360,7 @@ static void do_refine(logical *ifmortar, int *irefine)
       front[miel] = 1;
     }
   }
+  NPB_PARALLEL_FOR_END()
 
   // front[iel] records how many elements with sequence numbers less than
   // or equal to iel will be refined
@@ -354,6 +370,7 @@ static void do_refine(logical *ifmortar, int *irefine)
   num_refine = front[nelt-1];
 
   // action[i] records the morton index of the  i'th element to be refined
+  NPB_PARALLEL_FOR_BEGIN(R_DO_REFINE_2)
   #pragma omp parallel for default(shared) private(miel,iel)
   for (miel = 0; miel < nelt; miel++) {
     iel = mt_to_id_old[miel];
@@ -361,10 +378,12 @@ static void do_refine(logical *ifmortar, int *irefine)
       action[front[miel]-1] = miel;
     }
   }
+  NPB_PARALLEL_FOR_END()
 
   // Compute array mt_to_id to convert the element index to morton index.
   // ref_front_id[iel] records how many elements with index less than
   // iel (actual element index, not morton index), will be refined.
+  NPB_PARALLEL_FOR_BEGIN(R_DO_REFINE_3)
   #pragma omp parallel for default(shared) private(miel,iel,ntemp,mielnew)
   for (miel = 0; miel < nelt; miel++) {
     iel = mt_to_id_old[miel];
@@ -379,6 +398,7 @@ static void do_refine(logical *ifmortar, int *irefine)
     mt_to_id[mielnew] = iel;
     ref_front_id[iel] = nelt+ntemp;
   }
+  NPB_PARALLEL_FOR_END()
 
 
   // Perform refinement (potentially in parallel): 
@@ -392,6 +412,7 @@ static void do_refine(logical *ifmortar, int *irefine)
     *ifmortar = true;
   }
 
+  NPB_PARALLEL_FOR_BEGIN(R_DO_REFINE_4)
   #pragma omp parallel for default(shared) private(index,miel,mielnew,iel, \
               nelt,treetemp,xctemp,yctemp,zctemp,cbctemp,sjetemp,ta1temp, \
               ii,jj,ntemp,xleft,xright,xhalf,yleft,yright,yhalf,zleft,zright,\
@@ -640,6 +661,7 @@ static void do_refine(logical *ifmortar, int *irefine)
     // map solution from parent element to children
     remap(ta1[iel], &ta1[ref_front_id[iel]], ta1temp);
   }
+  NPB_PARALLEL_FOR_END()
 
   nelt = nelttemp + num_refine*7;
   *irefine = *irefine + num_refine;
@@ -732,6 +754,7 @@ static void find_coarsen(logical *if_coarsen, int neltold)
 
   *if_coarsen = false;
 
+  NPB_PARALLEL_FOR_BEGIN(R_FIND_COARSEN_1)
   #pragma omp parallel for default(shared) private(iel,i,iftemp) \
                        shared(if_coarsen)
   for (iel = 0; iel < neltold; iel++) {
@@ -753,6 +776,7 @@ static void find_coarsen(logical *if_coarsen, int neltold)
       }
     }
   }
+  NPB_PARALLEL_FOR_END()
 }
 
 
@@ -766,6 +790,7 @@ static void find_refine(logical *if_refine)
 
   *if_refine = false;
 
+  NPB_PARALLEL_FOR_BEGIN(R_FIND_REFINE_1)
   #pragma omp parallel for default(shared) private(iel) shared(if_refine)
   for (iel = 0; iel < nelt; iel++) {
     ich[iel] = 0;
@@ -776,6 +801,7 @@ static void find_refine(logical *if_refine)
       }
     }
   }
+  NPB_PARALLEL_FOR_END()
 }
 
 
@@ -791,6 +817,7 @@ static void check_refine(logical *ifrepeat)
 
   *ifrepeat = false;
 
+  NPB_PARALLEL_FOR_BEGIN(R_CHECK_REFINE_1)
   #pragma omp parallel for default(shared) private(iel,i,jface,ntemp, \
                            iface,nntemp) shared(ifrepeat)
   for (iel = 0; iel < nelt; iel++) {
@@ -839,6 +866,7 @@ static void check_refine(logical *ifrepeat)
       }
     }
   }
+  NPB_PARALLEL_FOR_END()
 }
 
 

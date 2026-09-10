@@ -46,6 +46,7 @@
 #include "globals.h"
 #include "randdp.h"
 #include "timers.h"
+#include "region_info.h"
 #include "print_results.h"
 
 
@@ -147,27 +148,16 @@ int main(int argc, char *argv[])
   double rnorm;
   double norm_temp1, norm_temp2;
 
-  double t, mflops, tmax;
+  double t, mflops;
   char Class;
   logical verified;
   double zeta_verify_value, epsilon, err;
-
-  char *t_names[T_last];
 
   for (i = 0; i < T_last; i++) {
     timer_clear(i);
   }
 
-  FILE *fp;
-  if ((fp = fopen("timer.flag", "r")) != NULL) {
-    timeron = true;
-    t_names[T_init] = "init";
-    t_names[T_bench] = "benchmk";
-    t_names[T_conj_grad] = "conjgd";
-    fclose(fp);
-  } else {
-    timeron = false;
-  }
+  timeron = npb_time_enabled();
 
   timer_start(T_init);
 
@@ -332,6 +322,7 @@ int main(int argc, char *argv[])
   // Main Iteration for inverse power method
   //---->
   //---------------------------------------------------------------------
+  npb_time_begin();
   for (it = 1; it <= num_iterations; it++) {
     //---------------------------------------------------------------------
     // The call to the conjugate gradient routine:
@@ -348,12 +339,14 @@ int main(int argc, char *argv[])
     //---------------------------------------------------------------------
     norm_temp1 = 0.0;
     norm_temp2 = 0.0;
+    NPB_PARALLEL_FOR_BEGIN(R_MAIN_PARALLEL_FOR_1)
     #pragma omp parallel for default(shared) private(j) \
                              reduction(+:norm_temp1,norm_temp2)
     for (j = 0; j < lastcol - firstcol + 1; j++) {
       norm_temp1 = norm_temp1 + x[j]*z[j];
       norm_temp2 = norm_temp2 + z[j]*z[j];
     }
+    NPB_PARALLEL_FOR_END()
 
     norm_temp2 = 1.0 / sqrt(norm_temp2);
 
@@ -365,11 +358,14 @@ int main(int argc, char *argv[])
     //---------------------------------------------------------------------
     // Normalize z to obtain x
     //---------------------------------------------------------------------
+    NPB_PARALLEL_FOR_BEGIN(R_MAIN_PARALLEL_FOR_2)
     #pragma omp parallel for default(shared) private(j)
     for (j = 0; j < lastcol - firstcol + 1; j++) {
       x[j] = norm_temp2 * z[j];
     }
+    NPB_PARALLEL_FOR_END()
   } // end of main iter inv pow meth
+  npb_time_end();
 
   timer_stop(T_bench);
 
@@ -416,26 +412,7 @@ int main(int argc, char *argv[])
                 verified, NPBVERSION, COMPILETIME,
                 CS1, CS2, CS3, CS4, CS5, CS6, CS7);
 
-  //---------------------------------------------------------------------
-  // More timers
-  //---------------------------------------------------------------------
-  if (timeron) {
-    tmax = timer_read(T_bench);
-    if (tmax == 0.0) tmax = 1.0;
-    printf("  SECTION   Time (secs)\n");
-    for (i = 0; i < T_last; i++) {
-      t = timer_read(i);
-      if (i == T_init) {
-        printf("  %8s:%9.3f\n", t_names[i], t);
-      } else {
-        printf("  %8s:%9.3f  (%6.2f%%)\n", t_names[i], t, t*100.0/tmax);
-        if (i == T_conj_grad) {
-          t = tmax - t;
-          printf("    --> %8s:%9.3f  (%6.2f%%)\n", "rest", t, t*100.0/tmax);
-        }
-      }
-    }
-  }
+  npb_time_report();
 
   return 0;
 }
@@ -462,12 +439,14 @@ static void conj_grad(int colidx[],
   rho = 0.0;
   sum = 0.0;
 
+  NPB_PARALLEL_BEGIN(R_CONJ_GRAD_PARALLEL_1)
   #pragma omp parallel default(shared) private(j,k,cgit,suml,alpha,beta) \
                                        shared(d,rho0,rho,sum)
   {
   //---------------------------------------------------------------------
   // Initialize the CG algorithm:
   //---------------------------------------------------------------------
+  NPB_FOR_BEGIN(R_CONJ_GRAD_FOR_1)
   #pragma omp for
   for (j = 0; j < naa+1; j++) {
     q[j] = 0.0;
@@ -475,15 +454,18 @@ static void conj_grad(int colidx[],
     r[j] = x[j];
     p[j] = r[j];
   }
+  NPB_FOR_END()
 
   //---------------------------------------------------------------------
   // rho = r.r
   // Now, obtain the norm of r: First, sum squares of r elements locally...
   //---------------------------------------------------------------------
+  NPB_FOR_BEGIN(R_CONJ_GRAD_FOR_2)
   #pragma omp for reduction(+:rho)
   for (j = 0; j < lastcol - firstcol + 1; j++) {
     rho = rho + r[j]*r[j];
   }
+  NPB_FOR_END()
 
   //---------------------------------------------------------------------
   //---->
@@ -514,6 +496,7 @@ static void conj_grad(int colidx[],
     //       The unrolled-by-8 version below is significantly faster
     //       on the Cray t3d - overall speed of code is 1.5 times faster.
 
+    NPB_FOR_BEGIN(R_CONJ_GRAD_FOR_3)
     #pragma omp for
     for (j = 0; j < lastrow - firstrow + 1; j++) {
       suml = 0.0;
@@ -522,6 +505,7 @@ static void conj_grad(int colidx[],
       }
       q[j] = suml;
     }
+    NPB_FOR_END()
 
     /*
     for (j = 0; j < lastrow - firstrow + 1; j++) {
@@ -564,10 +548,12 @@ static void conj_grad(int colidx[],
     //---------------------------------------------------------------------
     // Obtain p.q
     //---------------------------------------------------------------------
+    NPB_FOR_BEGIN(R_CONJ_GRAD_FOR_4)
     #pragma omp for reduction(+:d)
     for (j = 0; j < lastcol - firstcol + 1; j++) {
       d = d + p[j]*q[j];
     }
+    NPB_FOR_END()
 
     //---------------------------------------------------------------------
     // Obtain alpha = rho / (p.q)
@@ -578,6 +564,7 @@ static void conj_grad(int colidx[],
     // Obtain z = z + alpha*p
     // and    r = r - alpha*q
     //---------------------------------------------------------------------
+    NPB_FOR_BEGIN(R_CONJ_GRAD_FOR_5)
     #pragma omp for reduction(+:rho)
     for (j = 0; j < lastcol - firstcol + 1; j++) {
       z[j] = z[j] + alpha*p[j];
@@ -589,6 +576,7 @@ static void conj_grad(int colidx[],
       //---------------------------------------------------------------------
       rho = rho + r[j]*r[j];
     }
+    NPB_FOR_END()
 
     //---------------------------------------------------------------------
     // Obtain beta:
@@ -598,10 +586,12 @@ static void conj_grad(int colidx[],
     //---------------------------------------------------------------------
     // p = r + beta*p
     //---------------------------------------------------------------------
+    NPB_FOR_BEGIN(R_CONJ_GRAD_FOR_6)
     #pragma omp for
     for (j = 0; j < lastcol - firstcol + 1; j++) {
       p[j] = r[j] + beta*p[j];
     }
+    NPB_FOR_END()
   } // end of do cgit=1,cgitmax
 
   //---------------------------------------------------------------------
@@ -609,6 +599,7 @@ static void conj_grad(int colidx[],
   // First, form A.z
   // The partition submatrix-vector multiply
   //---------------------------------------------------------------------
+  NPB_FOR_BEGIN(R_CONJ_GRAD_FOR_7)
   #pragma omp for
   for (j = 0; j < lastrow - firstrow + 1; j++) {
     suml = 0.0;
@@ -617,16 +608,20 @@ static void conj_grad(int colidx[],
     }
     r[j] = suml;
   }
+  NPB_FOR_END()
 
   //---------------------------------------------------------------------
   // At this point, r contains A.z
   //---------------------------------------------------------------------
+  NPB_FOR_BEGIN(R_CONJ_GRAD_FOR_8)
   #pragma omp for reduction(+:sum) nowait
   for (j = 0; j < lastcol-firstcol+1; j++) {
     suml = x[j] - r[j];
     sum  = sum + suml*suml;
   }
+  NPB_FOR_END()
   }
+  NPB_PARALLEL_END()
 
   *rnorm = sqrt(sum);
 }

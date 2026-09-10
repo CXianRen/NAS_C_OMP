@@ -67,6 +67,7 @@ void z_solve()
   // Compute the indices for storing the block-diagonal matrix;
   // determine c (labeled f) and s jacobians
   //---------------------------------------------------------------------
+  NPB_PARALLEL_FOR_BEGIN(R_Z_SOLVE_PARALLEL)
   #pragma omp parallel for default(shared) shared(ksize) private(i,j,k,m,n)
   for (j = 1; j <= grid_points[1]-2; j++) {
     for (i = 1; i <= grid_points[0]-2; i++) {
@@ -404,5 +405,6 @@ void z_solve()
       }
     }
   }
+  NPB_PARALLEL_FOR_END()
   if (timeron) timer_stop(t_zsolve);
 }

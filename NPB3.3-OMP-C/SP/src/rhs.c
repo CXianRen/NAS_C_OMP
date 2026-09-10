@@ -41,6 +41,7 @@ void compute_rhs()
   double aux, rho_inv, uijk, up1, um1, vijk, vp1, vm1, wijk, wp1, wm1;
 
   if (timeron) timer_start(t_rhs);
+  NPB_PARALLEL_BEGIN(R_COMPUTE_RHS_PARALLEL)
   #pragma omp parallel default(shared) private(i,j,k,m,rho_inv,aux,uijk, \
                                        up1,um1,vijk,vp1,vm1,wijk,wp1,wm1)
   {
@@ -48,6 +49,7 @@ void compute_rhs()
   // compute the reciprocal of density, and the kinetic energy, 
   // and the speed of sound. 
   //---------------------------------------------------------------------
+  NPB_FOR_BEGIN(R_COMPUTE_RHS_FOR_1)
   #pragma omp for schedule(static) nowait
   for (k = 0; k <= grid_points[2]-1; k++) {
     for (j = 0; j <= grid_points[1]-1; j++) {
@@ -76,6 +78,8 @@ void compute_rhs()
   // this forcing term is known, we can store it on the whole grid
   // including the boundary                   
   //---------------------------------------------------------------------
+  NPB_FOR_END()
+  NPB_FOR_BEGIN(R_COMPUTE_RHS_FOR_2)
   #pragma omp for schedule(static)
   for (k = 0; k <= nz2+1; k++) {
     for (j = 0; j <= ny2+1; j++) {
@@ -86,12 +90,14 @@ void compute_rhs()
       }
     }
   }
+  NPB_FOR_END()
 
   //---------------------------------------------------------------------
   // compute xi-direction fluxes 
   //---------------------------------------------------------------------
   #pragma omp master
   if (timeron) timer_start(t_rhsx);
+  NPB_FOR_BEGIN(R_COMPUTE_RHS_FOR_3)
   #pragma omp for schedule(static) nowait
   for (k = 1; k <= nz2; k++) {
     for (j = 1; j <= ny2; j++) {
@@ -186,6 +192,8 @@ void compute_rhs()
   //---------------------------------------------------------------------
   if (timeron) timer_start(t_rhsy);
   }
+  NPB_FOR_END()
+  NPB_FOR_BEGIN(R_COMPUTE_RHS_FOR_4)
   #pragma omp for schedule(static)
   for (k = 1; k <= nz2; k++) {
     for (j = 1; j <= ny2; j++) {
@@ -275,6 +283,7 @@ void compute_rhs()
       }
     }
   }
+  NPB_FOR_END()
   #pragma omp master
   {
   if (timeron) timer_stop(t_rhsy);
@@ -284,6 +293,7 @@ void compute_rhs()
   //---------------------------------------------------------------------
   if (timeron) timer_start(t_rhsz);
   }
+  NPB_FOR_BEGIN(R_COMPUTE_RHS_FOR_5)
   #pragma omp for schedule(static)
   for (k = 1; k <= grid_points[2]-2; k++) {
     for (j = 1; j <= grid_points[1]-2; j++) {
@@ -325,11 +335,13 @@ void compute_rhs()
       }
     }
   }
+  NPB_FOR_END()
 
   //---------------------------------------------------------------------
   // add fourth order zeta-direction dissipation                
   //---------------------------------------------------------------------
   k = 1;
+  NPB_FOR_BEGIN(R_COMPUTE_RHS_FOR_6)
   #pragma omp for schedule(static) nowait
   for (j = 1; j <= grid_points[1]-2; j++) {
     for (i = 1; i <= grid_points[0]-2; i++) {
@@ -379,6 +391,8 @@ void compute_rhs()
   }
 
   k = grid_points[2]-2;
+  NPB_FOR_END()
+  NPB_FOR_BEGIN(R_COMPUTE_RHS_FOR_7)
   #pragma omp for schedule(static)
   for (j = 1; j <= grid_points[1]-2; j++) {
     for (i = 1; i <= grid_points[0]-2; i++) {
@@ -388,9 +402,11 @@ void compute_rhs()
       }
     }
   }
+  NPB_FOR_END()
   #pragma omp master
   if (timeron) timer_stop(t_rhsz);
 
+  NPB_FOR_BEGIN(R_COMPUTE_RHS_FOR_8)
   #pragma omp for schedule(static) nowait
   for (k = 1; k <= nz2; k++) {
     for (j = 1; j <= ny2; j++) {
@@ -401,6 +417,8 @@ void compute_rhs()
       }
     }
   }
+  NPB_FOR_END()
   } //end parallel
+  NPB_PARALLEL_END()
   if (timeron) timer_stop(t_rhs);
 }

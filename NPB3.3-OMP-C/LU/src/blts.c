@@ -66,6 +66,7 @@ void blts(int ldmx, int ldmy, int ldmz, int nx, int ny, int nz, int k,
   double (*vk)[ldmx/2*2+1][5] = v[k];
   double (*vkm1)[ldmx/2*2+1][5] = v[k-1];
 
+  NPB_FOR_BEGIN(R_BLTS_FOR_1)
   #pragma omp for schedule(static) nowait
   for (j = jst; j < jend; j++) {
     for (i = ist; i < iend; i++) {
@@ -203,6 +204,7 @@ void blts(int ldmx, int ldmy, int ldmz, int nx, int ny, int nz, int k,
       vk[j][i][0] = tv[0] / tmat[0][0];
     }
   }
+  NPB_FOR_END()
 
   sync_right( ldmx, ldmy, ldmz, v );
 }

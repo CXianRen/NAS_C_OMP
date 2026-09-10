@@ -1,0 +1,64 @@
+
+
+ NAS Parallel Benchmarks (NPB3.3-OMP-C) - EP Benchmark
+
+ Number of random numbers generated:      2147483648
+
+ Number of available threads:                      8
+
+EP Benchmark Results:
+
+CPU Time =    8.9313
+N = 2^   30
+No. Gaussian Pairs =       843345606
+Sums =     4.033815542441809E+04    -2.660669192812148E+04
+Counts: 
+  0      393058470
+  1      375280898
+  2       70460742
+  3        4438852
+  4         105691
+  5            948
+  6              5
+  7              0
+  8              0
+  9              0
+
+
+ EP Benchmark Completed.
+ Class           =                        B
+ Size            =               2147483648
+ Iterations      =                        0
+ Time in seconds =                     8.93
+ Total threads   =                        8
+ Avail threads   =                        8
+ Mop/s total     =                   240.44
+ Mop/s/thread    =                    30.06
+ Operation type  = Random numbers generated
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              10 Sep 2026
+
+ Compile options:
+    CC           = gcc
+    CLINK        = gcc
+    C_LIB        = -lm
+    C_INC        = (none)
+    CFLAGS       = -O3 -fopenmp -mcmodel=medium -mlarge-data-t...
+    CLINKFLAGS   = -fopenmp -mcmodel=medium -mlarge-data-thres...
+    RAND         = randdp
+
+--------------------------------------
+ Please send all errors/feedbacks to:
+ Center for Manycore Programming
+ cmp@aces.snu.ac.kr
+ http://aces.snu.ac.kr
+--------------------------------------
+
+
+time report
+unit: seconds
+iteration total: 8.931336503 s
+step %: accumulated region time / iteration total (average time-step basis)
+parallel region main:173  8.931336211 s  step: 100.000%
+    for region main:180-227 (nowait)  8.511058218 s  step: 95.294%

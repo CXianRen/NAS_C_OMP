@@ -1,0 +1,68 @@
+
+
+ NAS Parallel Benchmarks (NPB3.3-OMP-C) - CG Benchmark
+
+ Size:       75000
+ Iterations:                      3
+ Number of available threads:     8
+
+ Initialization time =           0.580 seconds
+
+   iteration           ||r||                 zeta
+        1       2.28110281855764E-13    59.9994751578754
+        2       8.46226623084489E-16    21.7627846142538
+        3       8.63117353946674E-16    22.2876617043225
+ Benchmark completed
+ VERIFICATION FAILED
+ Zeta                 2.2287661704323E+01
+ The correct zeta is  2.2712745482631E+01
+
+
+ CG Benchmark Completed.
+ Class           =                        B
+ Size            =                    75000
+ Iterations      =                        3
+ Time in seconds =                     0.31
+ Total threads   =                        8
+ Avail threads   =                        8
+ Mop/s total     =                  7082.20
+ Mop/s/thread    =                   885.27
+ Operation type  =           floating point
+ Verification    =             UNSUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              10 Sep 2026
+
+ Compile options:
+    CC           = gcc
+    CLINK        = gcc
+    C_LIB        = -lm
+    C_INC        = (none)
+    CFLAGS       = -O3 -fopenmp -mcmodel=medium -mlarge-data-t...
+    CLINKFLAGS   = -fopenmp -mcmodel=medium -mlarge-data-thres...
+    RAND         = randdp
+
+--------------------------------------
+ Please send all errors/feedbacks to:
+ Center for Manycore Programming
+ cmp@aces.snu.ac.kr
+ http://aces.snu.ac.kr
+--------------------------------------
+
+
+time report
+unit: seconds
+iteration total: 0.308992996 s
+step %: accumulated region time / iteration total (average time-step basis)
+parallel region main:343  0.000054019 s  step: 0.017%
+    for region main:343  0.000054019 s  step: 0.017%
+parallel region main:362  0.000018900 s  step: 0.006%
+    for region main:362  0.000018900 s  step: 0.006%
+parallel region conj_grad:443  0.308848688 s  step: 99.953%
+    for region conj_grad:450  0.000110980 s  step: 0.036%
+    for region conj_grad:464  0.000026844 s  step: 0.009%
+    for region conj_grad:500  0.292953561 s  step: 94.809%
+    for region conj_grad:552  0.001103848 s  step: 0.357%
+    for region conj_grad:568  0.001968131 s  step: 0.637%
+    for region conj_grad:590  0.001293983 s  step: 0.419%
+    for region conj_grad:603  0.011121402 s  step: 3.599%
+    for region conj_grad:617-622 (nowait)  0.000046038 s  step: 0.015%

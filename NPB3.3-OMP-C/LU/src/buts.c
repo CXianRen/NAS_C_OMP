@@ -64,6 +64,7 @@ void buts(int ldmx, int ldmy, int ldmz, int nx, int ny, int nz, int k,
 
   sync_left( ldmx, ldmy, ldmz, v );
 
+  NPB_FOR_BEGIN(R_BUTS_FOR_1)
   #pragma omp for schedule(static) nowait
   for (j = jend - 1; j >= jst; j--) {
     for (i = iend - 1; i >= ist; i--) {
@@ -203,6 +204,7 @@ void buts(int ldmx, int ldmy, int ldmz, int nx, int ny, int nz, int k,
       v[k][j][i][4] = v[k][j][i][4] - tv[j][i][4];
     }
   }
+  NPB_FOR_END()
 
   sync_right( ldmx, ldmy, ldmz, v );
 }

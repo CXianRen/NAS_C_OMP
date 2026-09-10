@@ -1,0 +1,21 @@
+#ifndef NPB_CG_REGION_INFO_H
+#define NPB_CG_REGION_INFO_H
+
+#include "region_timers.h"
+
+enum {
+  R_MAIN_PARALLEL_FOR_1 = 0,
+  R_MAIN_PARALLEL_FOR_2 = 1,
+  R_CONJ_GRAD_PARALLEL_1 = 2,
+  R_CONJ_GRAD_FOR_1 = 3,
+  R_CONJ_GRAD_FOR_2 = 4,
+  R_CONJ_GRAD_FOR_3 = 5,
+  R_CONJ_GRAD_FOR_4 = 6,
+  R_CONJ_GRAD_FOR_5 = 7,
+  R_CONJ_GRAD_FOR_6 = 8,
+  R_CONJ_GRAD_FOR_7 = 9,
+  R_CONJ_GRAD_FOR_8 = 10,
+  R_COUNT = 11
+};
+
+#endif

@@ -57,6 +57,7 @@
 #include "adc.h"
 #include "macrodef.h"
 #include "npbparams.h"
+#include "region_info.h"
 
 #ifdef UNIX
 #include <sys/types.h>
@@ -201,8 +202,9 @@ int32 DC(ADC_VIEW_PARS *adcpp) {
       fprintf(stdout,"Warning: Maximum number of tasks reached: %d\n",
               adcpp->nTasks);
    }
-#pragma omp parallel shared(pvstp) private(itsk)
 #endif
+   npb_time_begin();
+#pragma omp parallel shared(pvstp) private(itsk)
   {
    double tm0=0;
    int itimer=0;
@@ -230,9 +232,11 @@ int32 DC(ADC_VIEW_PARS *adcpp) {
      }
      timer_clear(itimer);
      timer_start(itimer);
+     if (itsk == 0) npb_time_start(R_COMPUTE);
      if( ComputeGivenGroupbys(adccntlp) ) {
         PutErrMsg("DC.ComputeGivenGroupbys failed");
      }
+     if (itsk == 0) npb_time_stop(R_COMPUTE);
      timer_stop(itimer);
      tm0 = timer_read(itimer);
    }
@@ -254,6 +258,7 @@ int32 DC(ADC_VIEW_PARS *adcpp) {
      adccntlp->verificationFailed = 1;
    }
  } /* omp parallel */
+   npb_time_end();
 
    t_total=pvstp->tm_max; 
  
@@ -293,6 +298,7 @@ int32 DC(ADC_VIEW_PARS *adcpp) {
   		   C_INC,
   		   CFLAGS,
   		   CLINKFLAGS); 
+   npb_time_report();
    return ADC_OK;
 }
 
@@ -323,4 +329,3 @@ int Verify(long long int checksum,ADC_VIEW_PARS *adcpp){
   }
   return 1;
 }
-

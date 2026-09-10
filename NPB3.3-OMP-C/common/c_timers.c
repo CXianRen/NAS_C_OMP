@@ -1,11 +1,4 @@
-#include "wtime.h"
-#include <stdlib.h>
-#ifdef _OPENMP
 #include <omp.h>
-#endif
-
-/*  Prototype  */
-void wtime( double * );
 
 
 /*****************************************************************/
@@ -13,23 +6,12 @@ void wtime( double * );
 /*****************************************************************/
 static double elapsed_time( void )
 {
-    double t;
-
-#if defined(_OPENMP) && (_OPENMP > 200010)
-/*  Use the OpenMP timer if we can */
-    t = omp_get_wtime();
-#else
-    wtime( &t );
-#endif
-    return( t );
+    return omp_get_wtime();
 }
 
 
 static double start[64], elapsed[64];
-static unsigned count[64];
-#ifdef _OPENMP
-#pragma omp threadprivate(start, elapsed, count)
-#endif
+#pragma omp threadprivate(start, elapsed)
 
 /*****************************************************************/
 /******            T  I  M  E  R  _  C  L  E  A  R          ******/
@@ -37,7 +19,6 @@ static unsigned count[64];
 void timer_clear( int n )
 {
     elapsed[n] = 0.0;
-    count[n] = 0;
 }
 
 
@@ -60,7 +41,6 @@ void timer_stop( int n )
     now = elapsed_time();
     t = now - start[n];
     elapsed[n] += t;
-    count[n]++;
 
 }
 
@@ -71,9 +51,4 @@ void timer_stop( int n )
 double timer_read( int n )
 {
     return( elapsed[n] );
-}
-
-unsigned timer_count( int n )
-{
-    return count[n];
 }

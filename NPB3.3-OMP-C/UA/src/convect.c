@@ -68,6 +68,7 @@ void convect(logical ifmortar)
     zz0[substep] = Z00+VELZ*subtime[substep];
   }
 
+  NPB_PARALLEL_FOR_BEGIN(R_CONVECT_1)
   #pragma omp parallel for default(shared) private(rk4,rk3,rk2,temp,rk1,dtx3,\
           dtx2,dtx1,iside,ip,sum,src,r2,i,j,k,isize,iel,tempa,xloc,yloc,zloc)
   for (iel = 0; iel < nelt; iel++) {
@@ -232,7 +233,8 @@ void convect(logical ifmortar)
         }
       }
     }
-  } 
+  }
+  NPB_PARALLEL_FOR_END()
 
   // get mortar for intial guess for CG
   if (timeron) timer_start(t_transfb_c);
@@ -243,9 +245,11 @@ void convect(logical ifmortar)
   }
   if (timeron) timer_stop(t_transfb_c);
 
+  NPB_PARALLEL_FOR_BEGIN(R_CONVECT_2)
   #pragma omp parallel for default(shared) private(i)
   for (i = 0; i < nmor; i++) {
     tmort[i] = tmort[i] / mormult[i];
   }
+  NPB_PARALLEL_FOR_END()
   if (timeron) timer_stop(t_convect);
 }

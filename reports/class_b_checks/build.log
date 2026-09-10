@@ -1,0 +1,147 @@
+make: Entering directory '/home/chenhon/topics/topic_phams/code/benchmark/NPB3.3-OMP-C'
+gcc -O2 "sys/setparams.c" -o "/tmp/npb-parallel-for-check.mZBJoT/build/setparams"
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/BT.B" -I"./common" -I"./BT/src" ./BT/src/add.c ./BT/src/adi.c ./BT/src/bt.c ./BT/src/error.c ./BT/src/exact_rhs.c ./BT/src/exact_solution.c ./BT/src/initialize.c ./BT/src/region_info.c ./BT/src/rhs.c ./BT/src/set_constants.c ./BT/src/solve_subs.c ./BT/src/verify.c ./BT/src/x_solve.c ./BT/src/y_solve.c ./BT/src/z_solve.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c ./common/randdp.c -o "/tmp/npb-parallel-for-check.mZBJoT/bin/BT.B" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/CG.S" -I"./common" -I"./CG/src" ./CG/src/cg.c ./CG/src/region_info.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c ./common/randdp.c -o "/tmp/npb-parallel-for-check.mZBJoT/bin/CG.S" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/CG.B" -I"./common" -I"./CG/src" ./CG/src/cg.c ./CG/src/region_info.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c ./common/randdp.c -o "/tmp/npb-parallel-for-check.mZBJoT/bin/CG.B" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/BT.S" -I"./common" -I"./BT/src" ./BT/src/add.c ./BT/src/adi.c ./BT/src/bt.c ./BT/src/error.c ./BT/src/exact_rhs.c ./BT/src/exact_solution.c ./BT/src/initialize.c ./BT/src/region_info.c ./BT/src/rhs.c ./BT/src/set_constants.c ./BT/src/solve_subs.c ./BT/src/verify.c ./BT/src/x_solve.c ./BT/src/y_solve.c ./BT/src/z_solve.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c ./common/randdp.c -o "/tmp/npb-parallel-for-check.mZBJoT/bin/BT.S" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/DC.S" -I"./common" -I"./DC/src" ./DC/src/adc.c ./DC/src/dc.c ./DC/src/extbuild.c ./DC/src/jobcntl.c ./DC/src/rbt.c ./DC/src/region_info.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c ./common/randdp.c -o "/tmp/npb-parallel-for-check.mZBJoT/bin/DC.S" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/DC.B" -I"./common" -I"./DC/src" ./DC/src/adc.c ./DC/src/dc.c ./DC/src/extbuild.c ./DC/src/jobcntl.c ./DC/src/rbt.c ./DC/src/region_info.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c ./common/randdp.c -o "/tmp/npb-parallel-for-check.mZBJoT/bin/DC.B" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+./DC/src/adc.c: In function ‘ParseParFile’:
+./DC/src/adc.c:437:13: warning: writing into constant object (argument 3) [-Wformat=]
+  437 |             sscanf(pos,"%s",par->filename);
+      |             ^~~~~~
+./DC/src/adc.c: In function ‘ParseParFile’:
+./DC/src/adc.c:437:13: warning: writing into constant object (argument 3) [-Wformat=]
+  437 |             sscanf(pos,"%s",par->filename);
+      |             ^~~~~~
+./DC/src/extbuild.c: In function ‘ViewSizesVerification’:
+./DC/src/extbuild.c:854:30: warning: format not a string literal and no format arguments [-Wformat-security]
+  854 |      fprintf(adccntlp->logf, msg);
+      |                              ^~~
+./DC/src/extbuild.c: In function ‘SharedSortAggregate’:
+./DC/src/extbuild.c:133:5: warning: ignoring return value of ‘fread’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  133 |     fread(ib, ncur*avp->inpRecSize, 1, avp->viewFile);
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./DC/src/extbuild.c: In function ‘PrefixedAggregate’:
+./DC/src/extbuild.c:266:7: warning: ignoring return value of ‘fread’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  266 |       fread(attrs, avp->inpRecSize, 1, iof);
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./DC/src/extbuild.c: In function ‘RunFormation’:
+./DC/src/extbuild.c:329:6: warning: ignoring return value of ‘fread’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  329 |      fread(attrs, avp->inpRecSize, 1, inpf);
+      |      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./DC/src/extbuild.c: In function ‘SeekAndReadNextSubChunk’:
+./DC/src/extbuild.c:379:4: warning: ignoring return value of ‘fread’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  379 |    fread(&multiChunkBuffer[k], chunkRecSize*subChunkNum, 1, inFile);
+      |    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./DC/src/extbuild.c: In function ‘ViewSizesVerification’:
+./DC/src/extbuild.c:823:12: warning: ignoring return value of ‘fscanf’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  823 |            fscanf(adccntlp->adcViewSizesFile, "%s", inps);
+      |            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./DC/src/extbuild.c: In function ‘ViewSizesVerification’:
+./DC/src/extbuild.c:854:30: warning: format not a string literal and no format arguments [-Wformat-security]
+  854 |      fprintf(adccntlp->logf, msg);
+      |                              ^~~
+./DC/src/extbuild.c: In function ‘SharedSortAggregate’:
+./DC/src/extbuild.c:133:5: warning: ignoring return value of ‘fread’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  133 |     fread(ib, ncur*avp->inpRecSize, 1, avp->viewFile);
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./DC/src/extbuild.c: In function ‘PrefixedAggregate’:
+./DC/src/extbuild.c:266:7: warning: ignoring return value of ‘fread’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  266 |       fread(attrs, avp->inpRecSize, 1, iof);
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./DC/src/extbuild.c: In function ‘RunFormation’:
+./DC/src/extbuild.c:329:6: warning: ignoring return value of ‘fread’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  329 |      fread(attrs, avp->inpRecSize, 1, inpf);
+      |      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./DC/src/extbuild.c: In function ‘SeekAndReadNextSubChunk’:
+./DC/src/extbuild.c:379:4: warning: ignoring return value of ‘fread’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  379 |    fread(&multiChunkBuffer[k], chunkRecSize*subChunkNum, 1, inFile);
+      |    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./DC/src/extbuild.c: In function ‘ViewSizesVerification’:
+./DC/src/extbuild.c:823:12: warning: ignoring return value of ‘fscanf’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  823 |            fscanf(adccntlp->adcViewSizesFile, "%s", inps);
+      |            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./DC/src/jobcntl.c: In function ‘PartitionCube’:
+./DC/src/jobcntl.c:539:10: warning: ignoring return value of ‘fscanf’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  539 |          fscanf(avp->adcViewSizesFile, "%s", inps);
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./DC/src/jobcntl.c: In function ‘PartitionCube’:
+./DC/src/jobcntl.c:539:10: warning: ignoring return value of ‘fscanf’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  539 |          fscanf(avp->adcViewSizesFile, "%s", inps);
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/EP.S" -I"./common" -I"./EP/src" ./EP/src/ep.c ./EP/src/region_info.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c ./common/randdp.c -o "/tmp/npb-parallel-for-check.mZBJoT/bin/EP.S" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/EP.B" -I"./common" -I"./EP/src" ./EP/src/ep.c ./EP/src/region_info.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c ./common/randdp.c -o "/tmp/npb-parallel-for-check.mZBJoT/bin/EP.B" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+./BT/src/x_solve.c: In function ‘x_solve._omp_fn.0’:
+./BT/src/x_solve.c:374:7: warning: ‘matmul_sub’ accessing 200 bytes in a region of size 0 [-Wstringop-overflow=]
+  374 |       matmul_sub(lhs[isize][AA], lhs[isize-1][CC], lhs[isize][BB]);
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./BT/src/x_solve.c:374:7: note: referencing argument 2 of type ‘double[5][5]’
+./BT/src/x_solve.c:374:7: note: referencing argument 3 of type ‘double[5][5]’
+In file included from ./BT/src/x_solve.c:35:
+./BT/src/header.h:139:6: note: in a call to function ‘matmul_sub’
+  139 | void matmul_sub(double ablock[5][5], double bblock[5][5], double cblock[5][5]);
+      |      ^~~~~~~~~~
+./BT/src/x_solve.c: In function ‘x_solve._omp_fn.0’:
+./BT/src/x_solve.c:374:7: warning: ‘matmul_sub’ accessing 200 bytes in a region of size 0 [-Wstringop-overflow=]
+  374 |       matmul_sub(lhs[isize][AA], lhs[isize-1][CC], lhs[isize][BB]);
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./BT/src/x_solve.c:374:7: note: referencing argument 2 of type ‘double[5][5]’
+./BT/src/x_solve.c:374:7: note: referencing argument 3 of type ‘double[5][5]’
+In file included from ./BT/src/x_solve.c:35:
+./BT/src/header.h:139:6: note: in a call to function ‘matmul_sub’
+  139 | void matmul_sub(double ablock[5][5], double bblock[5][5], double cblock[5][5]);
+      |      ^~~~~~~~~~
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/FT.S" -I"./common" -I"./FT/src" ./FT/src/ft.c ./FT/src/region_info.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c ./common/randdp.c -o "/tmp/npb-parallel-for-check.mZBJoT/bin/FT.S" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/FT.B" -I"./common" -I"./FT/src" ./FT/src/ft.c ./FT/src/region_info.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c ./common/randdp.c -o "/tmp/npb-parallel-for-check.mZBJoT/bin/FT.B" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+./BT/src/y_solve.c: In function ‘y_solve._omp_fn.0’:
+./BT/src/y_solve.c:371:7: warning: ‘matmul_sub’ accessing 200 bytes in a region of size 0 [-Wstringop-overflow=]
+  371 |       matmul_sub(lhs[jsize][AA], lhs[jsize-1][CC], lhs[jsize][BB]);
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./BT/src/y_solve.c:371:7: note: referencing argument 2 of type ‘double[5][5]’
+./BT/src/y_solve.c:371:7: note: referencing argument 3 of type ‘double[5][5]’
+In file included from ./BT/src/y_solve.c:35:
+./BT/src/header.h:139:6: note: in a call to function ‘matmul_sub’
+  139 | void matmul_sub(double ablock[5][5], double bblock[5][5], double cblock[5][5]);
+      |      ^~~~~~~~~~
+./BT/src/y_solve.c: In function ‘y_solve._omp_fn.0’:
+./BT/src/y_solve.c:371:7: warning: ‘matmul_sub’ accessing 200 bytes in a region of size 0 [-Wstringop-overflow=]
+  371 |       matmul_sub(lhs[jsize][AA], lhs[jsize-1][CC], lhs[jsize][BB]);
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./BT/src/y_solve.c:371:7: note: referencing argument 2 of type ‘double[5][5]’
+./BT/src/y_solve.c:371:7: note: referencing argument 3 of type ‘double[5][5]’
+In file included from ./BT/src/y_solve.c:35:
+./BT/src/header.h:139:6: note: in a call to function ‘matmul_sub’
+  139 | void matmul_sub(double ablock[5][5], double bblock[5][5], double cblock[5][5]);
+      |      ^~~~~~~~~~
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/IS.S" -I"./common" -I"./IS/src" ./IS/src/is.c ./IS/src/region_info.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c  -o "/tmp/npb-parallel-for-check.mZBJoT/bin/IS.S" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/IS.B" -I"./common" -I"./IS/src" ./IS/src/is.c ./IS/src/region_info.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c  -o "/tmp/npb-parallel-for-check.mZBJoT/bin/IS.B" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+./BT/src/z_solve.c: In function ‘z_solve._omp_fn.0’:
+./BT/src/z_solve.c:381:7: warning: ‘matmul_sub’ accessing 200 bytes in a region of size 0 [-Wstringop-overflow=]
+  381 |       matmul_sub(lhs[ksize][AA], lhs[ksize-1][CC], lhs[ksize][BB]);
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./BT/src/z_solve.c:381:7: note: referencing argument 2 of type ‘double[5][5]’
+./BT/src/z_solve.c:381:7: note: referencing argument 3 of type ‘double[5][5]’
+In file included from ./BT/src/z_solve.c:35:
+./BT/src/header.h:139:6: note: in a call to function ‘matmul_sub’
+  139 | void matmul_sub(double ablock[5][5], double bblock[5][5], double cblock[5][5]);
+      |      ^~~~~~~~~~
+./BT/src/z_solve.c: In function ‘z_solve._omp_fn.0’:
+./BT/src/z_solve.c:381:7: warning: ‘matmul_sub’ accessing 200 bytes in a region of size 0 [-Wstringop-overflow=]
+  381 |       matmul_sub(lhs[ksize][AA], lhs[ksize-1][CC], lhs[ksize][BB]);
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./BT/src/z_solve.c:381:7: note: referencing argument 2 of type ‘double[5][5]’
+./BT/src/z_solve.c:381:7: note: referencing argument 3 of type ‘double[5][5]’
+In file included from ./BT/src/z_solve.c:35:
+./BT/src/header.h:139:6: note: in a call to function ‘matmul_sub’
+  139 | void matmul_sub(double ablock[5][5], double bblock[5][5], double cblock[5][5]);
+      |      ^~~~~~~~~~
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/LU.S" -I"./common" -I"./LU/src" ./LU/src/blts.c ./LU/src/buts.c ./LU/src/domain.c ./LU/src/erhs.c ./LU/src/error.c ./LU/src/exact.c ./LU/src/jacld.c ./LU/src/jacu.c ./LU/src/l2norm.c ./LU/src/lu.c ./LU/src/pintgr.c ./LU/src/read_input.c ./LU/src/region_info.c ./LU/src/rhs.c ./LU/src/setbv.c ./LU/src/setcoeff.c ./LU/src/setiv.c ./LU/src/ssor.c ./LU/src/syncs.c ./LU/src/verify.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c  -o "/tmp/npb-parallel-for-check.mZBJoT/bin/LU.S" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/LU.B" -I"./common" -I"./LU/src" ./LU/src/blts.c ./LU/src/buts.c ./LU/src/domain.c ./LU/src/erhs.c ./LU/src/error.c ./LU/src/exact.c ./LU/src/jacld.c ./LU/src/jacu.c ./LU/src/l2norm.c ./LU/src/lu.c ./LU/src/pintgr.c ./LU/src/read_input.c ./LU/src/region_info.c ./LU/src/rhs.c ./LU/src/setbv.c ./LU/src/setcoeff.c ./LU/src/setiv.c ./LU/src/ssor.c ./LU/src/syncs.c ./LU/src/verify.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c  -o "/tmp/npb-parallel-for-check.mZBJoT/bin/LU.B" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/MG.S" -I"./common" -I"./MG/src" ./MG/src/mg.c ./MG/src/region_info.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c ./common/randdp.c -o "/tmp/npb-parallel-for-check.mZBJoT/bin/MG.S" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/MG.B" -I"./common" -I"./MG/src" ./MG/src/mg.c ./MG/src/region_info.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c ./common/randdp.c -o "/tmp/npb-parallel-for-check.mZBJoT/bin/MG.B" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/SP.S" -I"./common" -I"./SP/src" ./SP/src/add.c ./SP/src/adi.c ./SP/src/error.c ./SP/src/exact_rhs.c ./SP/src/exact_solution.c ./SP/src/initialize.c ./SP/src/ninvr.c ./SP/src/pinvr.c ./SP/src/region_info.c ./SP/src/rhs.c ./SP/src/set_constants.c ./SP/src/sp.c ./SP/src/txinvr.c ./SP/src/tzetar.c ./SP/src/verify.c ./SP/src/x_solve.c ./SP/src/y_solve.c ./SP/src/z_solve.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c  -o "/tmp/npb-parallel-for-check.mZBJoT/bin/SP.S" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/SP.B" -I"./common" -I"./SP/src" ./SP/src/add.c ./SP/src/adi.c ./SP/src/error.c ./SP/src/exact_rhs.c ./SP/src/exact_solution.c ./SP/src/initialize.c ./SP/src/ninvr.c ./SP/src/pinvr.c ./SP/src/region_info.c ./SP/src/rhs.c ./SP/src/set_constants.c ./SP/src/sp.c ./SP/src/txinvr.c ./SP/src/tzetar.c ./SP/src/verify.c ./SP/src/x_solve.c ./SP/src/y_solve.c ./SP/src/z_solve.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c  -o "/tmp/npb-parallel-for-check.mZBJoT/bin/SP.B" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/UA.S" -I"./common" -I"./UA/src" ./UA/src/adapt.c ./UA/src/convect.c ./UA/src/diffuse.c ./UA/src/mason.c ./UA/src/move.c ./UA/src/precond.c ./UA/src/region_info.c ./UA/src/setup.c ./UA/src/transfer.c ./UA/src/ua.c ./UA/src/utils.c ./UA/src/verify.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c -o "/tmp/npb-parallel-for-check.mZBJoT/bin/UA.S" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+gcc -O3 -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -I"/tmp/npb-parallel-for-check.mZBJoT/build/UA.B" -I"./common" -I"./UA/src" ./UA/src/adapt.c ./UA/src/convect.c ./UA/src/diffuse.c ./UA/src/mason.c ./UA/src/move.c ./UA/src/precond.c ./UA/src/region_info.c ./UA/src/setup.c ./UA/src/transfer.c ./UA/src/ua.c ./UA/src/utils.c ./UA/src/verify.c ./common/c_print_results.c ./common/c_timers.c ./common/region_timers.c ./common/print_results.c ./common/wtime.c -o "/tmp/npb-parallel-for-check.mZBJoT/bin/UA.B" -fopenmp -mcmodel=medium -mlarge-data-threshold=67108864 -lm
+make: Leaving directory '/home/chenhon/topics/topic_phams/code/benchmark/NPB3.3-OMP-C'

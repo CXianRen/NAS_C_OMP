@@ -139,31 +139,10 @@ int main(int argc, char *argv[])
   logical verified;
   double mflops;
 
-  double t, tmax, trecs[t_last+1];
-  int i;
-  char *t_names[t_last+1];
-
   //---------------------------------------------------------------------
   // Setup info for timers
   //---------------------------------------------------------------------
-  FILE *fp;
-  if ((fp = fopen("timer.flag", "r")) != NULL) {
-    timeron = true;
-    t_names[t_total] = "total";
-    t_names[t_rhsx] = "rhsx";
-    t_names[t_rhsy] = "rhsy";
-    t_names[t_rhsz] = "rhsz";
-    t_names[t_rhs] = "rhs";
-    t_names[t_jacld] = "jacld";
-    t_names[t_blts] = "blts";
-    t_names[t_jacu] = "jacu";
-    t_names[t_buts] = "buts";
-    t_names[t_add] = "add";
-    t_names[t_l2norm] = "l2norm";
-    fclose(fp);
-  } else {
-    timeron = false;
-  }
+  timeron = npb_time_enabled();
 
   //---------------------------------------------------------------------
   // read input data
@@ -198,7 +177,7 @@ int main(int argc, char *argv[])
   //---------------------------------------------------------------------
   // perform one SSOR iteration to touch all data pages
   //---------------------------------------------------------------------
-  ssor(1);
+  ssor(1, false);
 
   //---------------------------------------------------------------------
   // reset the boundary and initial values
@@ -209,7 +188,7 @@ int main(int argc, char *argv[])
   //---------------------------------------------------------------------
   // perform the SSOR iterations
   //---------------------------------------------------------------------
-  ssor(itmax);
+  ssor(itmax, true);
 
   //---------------------------------------------------------------------
   // compute the solution error
@@ -239,28 +218,7 @@ int main(int argc, char *argv[])
                 NPBVERSION, COMPILETIME, CS1, CS2, CS3, CS4, CS5, CS6, 
                 "(none)");
 
-  //---------------------------------------------------------------------
-  // More timers
-  //---------------------------------------------------------------------
-  if (timeron) {
-    for (i = 1; i <= t_last; i++) {
-      trecs[i] = timer_read(i);
-    }
-    tmax = maxtime;
-    if (tmax == 0.0) tmax = 1.0;
-
-    printf("  SECTION     Time (secs)\n");
-    for (i = 1; i <= t_last; i++) {
-      printf("  %-8s:%9.3f  (%6.2f%%)\n",
-          t_names[i], trecs[i], trecs[i]*100./tmax);
-      if (i == t_rhs) {
-        t = trecs[t_rhsx] + trecs[t_rhsy] + trecs[t_rhsz];
-        printf("     --> %8s:%9.3f  (%6.2f%%)\n", "sub-rhs", t, t*100./tmax);
-        t = trecs[i] - t;
-        printf("     --> %8s:%9.3f  (%6.2f%%)\n", "rest-rhs", t, t*100./tmax);
-      }
-    }
-  }
+  npb_time_report();
 
   return 0;
 }

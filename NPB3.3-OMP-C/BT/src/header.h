@@ -52,6 +52,8 @@
 
 #include "npbparams.h"
 #include "type.h"
+#include "region_timers.h"
+#include "region_info.h"
 
 #define AA            0
 #define BB            1

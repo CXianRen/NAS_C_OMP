@@ -68,6 +68,7 @@ void x_solve()
   //---------------------------------------------------------------------
   // determine a (labeled f) and n jacobians
   //---------------------------------------------------------------------
+  NPB_PARALLEL_FOR_BEGIN(R_X_SOLVE_PARALLEL)
   #pragma omp parallel for default(shared) shared(isize) private(i,j,k,m,n)
   for (k = 1; k <= grid_points[2]-2; k++) {
     for (j = 1; j <= grid_points[1]-2; j++) {
@@ -393,5 +394,6 @@ void x_solve()
       }
     }
   }
+  NPB_PARALLEL_FOR_END()
   if (timeron) timer_stop(t_xsolve);
 }

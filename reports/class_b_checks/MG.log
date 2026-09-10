@@ -1,0 +1,68 @@
+
+
+ NAS Parallel Benchmarks (NPB3.3-OMP-C) - MG Benchmark
+
+ No input file. Using compiled defaults 
+ Size:  256x 256x 256  (class B)
+ Iterations:                      3
+ Number of available threads:     8
+
+ Initialization time:           0.226 seconds
+
+  iter   1
+  iter   3
+
+ Benchmark completed
+ VERIFICATION FAILED
+ L2 Norm is              2.5234568702479E-04
+ The correct L2 Norm is  1.8005644013550E-06
+
+
+ MG Benchmark Completed.
+ Class           =                        B
+ Size            =            256x 256x 256
+ Iterations      =                        3
+ Time in seconds =                     0.19
+ Total threads   =                        8
+ Avail threads   =                        8
+ Mop/s total     =                 15764.12
+ Mop/s/thread    =                  1970.52
+ Operation type  =           floating point
+ Verification    =             UNSUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              10 Sep 2026
+
+ Compile options:
+    CC           = gcc
+    CLINK        = gcc
+    C_LIB        = -lm
+    C_INC        = (none)
+    CFLAGS       = -O3 -fopenmp -mcmodel=medium -mlarge-data-t...
+    CLINKFLAGS   = -fopenmp -mcmodel=medium -mlarge-data-thres...
+    RAND         = randdp
+
+--------------------------------------
+ Please send all errors/feedbacks to:
+ Center for Manycore Programming
+ cmp@aces.snu.ac.kr
+ http://aces.snu.ac.kr
+--------------------------------------
+
+
+time report
+unit: seconds
+iteration total: 0.165904583 s
+step %: accumulated region time / iteration total (average time-step basis)
+parallel region psinv:480  0.037292193 s  step: 22.478%
+    for region psinv:480  0.037292193 s  step: 22.478%
+parallel region resid:545  0.087335639 s  step: 52.642%
+    for region resid:545  0.087335639 s  step: 52.642%
+parallel region rprj3:625  0.015779422 s  step: 9.511%
+    for region rprj3:625  0.015779422 s  step: 9.511%
+parallel region interp:697  0.018763791 s  step: 11.310%
+    for region interp:697  0.018763791 s  step: 11.310%
+parallel region comm3:920  0.005060806 s  step: 3.050%
+    for region comm3:923  0.003538883 s  step: 2.133%
+    for region comm3:940-947 (nowait)  0.000537315 s  step: 0.324%
+parallel region zero3:1297  0.001609642 s  step: 0.970%
+    for region zero3:1297  0.001609642 s  step: 0.970%

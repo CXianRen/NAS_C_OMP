@@ -53,10 +53,12 @@ void diffusion(logical ifmortar)
   // arrays t and umor are accumlators of (am pm) in the CG algorithm
   // (see the specification)
   r_init_omp((double *)t, ntot, 0.0);
+  NPB_PARALLEL_FOR_BEGIN(R_DIFFUSION_1)
   #pragma omp parallel for default(shared) private(i)
   for (i = 0; i < nmor; i++) {
     umor[i] = 0.0;
   }
+  NPB_PARALLEL_FOR_END()
 
   // calculate initial am (see specification) in CG algorithm
 
@@ -64,8 +66,10 @@ void diffusion(logical ifmortar)
   // pdiff and pmorx are combined to generate q0 in the CG algorithm.
   // rho1 is  (qm,rm) in the CG algorithm.
   rho1 = 0.0;
+  NPB_PARALLEL_BEGIN(R_DIFFUSION_2)
   #pragma omp parallel default(shared) private(im,ie,i,j,k) reduction(+:rho1)
   {
+  NPB_FOR_BEGIN(R_DIFFUSION_3)
   #pragma omp for nowait 
   for (ie = 0; ie < nelt; ie++) {
     for (k = 0; k < LX1; k++) {
@@ -84,7 +88,9 @@ void diffusion(logical ifmortar)
     pmorx[im] = dpcmor[im]*rmor[im];
     rho1      = rho1 + rmor[im]*pmorx[im];
   }
-  } //end parallel
+  NPB_FOR_END()
+  }
+  NPB_PARALLEL_END() //end parallel
 
   //.................................................................
   // commence conjugate gradient iteration
@@ -92,11 +98,13 @@ void diffusion(logical ifmortar)
   for (iter = 1; iter <= nmxh; iter++) {
     if (iter > 1) {
       rho_aux = 0.0;
+      NPB_PARALLEL_BEGIN(R_DIFFUSION_4)
       #pragma omp parallel default(shared) private(im,ie,i,j,k) \
                                            reduction(+:rho_aux)
       {
       // pdiffp and ppmor are combined to generate q_m+1 in the specification
       // rho_aux is (q_m+1,r_m+1)
+      NPB_FOR_BEGIN(R_DIFFUSION_5)
       #pragma omp for nowait
       for (ie = 0; ie < nelt; ie++) {
         for (k = 0; k < LX1; k++) {
@@ -115,7 +123,9 @@ void diffusion(logical ifmortar)
         ppmor[im] = dpcmor[im]*rmor[im];
         rho_aux = rho_aux + rmor[im]*ppmor[im];
       }
-      } //end parallel
+      NPB_FOR_END()
+      }
+      NPB_PARALLEL_END() //end parallel
 
       // compute bm (beta) in the specification
       rho2 = rho1;
@@ -133,10 +143,12 @@ void diffusion(logical ifmortar)
     if (timeron) timer_stop(t_transf);
 
     // compute pdiffp which is (A theta pm) in the specification
+    NPB_PARALLEL_FOR_BEGIN(R_DIFFUSION_6)
     #pragma omp parallel for default(shared) private(ie) 
     for (ie = 0; ie < nelt; ie++) {
       laplacian(pdiffp[ie], pdiff[ie], size_e[ie]);
     }
+    NPB_PARALLEL_FOR_END()
 
     // compute ppmor which will be used to compute (thetaT A theta pm) 
     // in the specification
@@ -145,6 +157,7 @@ void diffusion(logical ifmortar)
     if (timeron) timer_stop(t_transfb);
 
     // apply boundary condition
+    NPB_PARALLEL_FOR_BEGIN(R_DIFFUSION_7)
     #pragma omp parallel for default(shared) private(ie,iside)
     for (ie = 0; ie < nelt; ie++) {
       for (iside = 0; iside < NSIDES; iside++) {
@@ -153,12 +166,15 @@ void diffusion(logical ifmortar)
         }
       }
     }
+    NPB_PARALLEL_FOR_END()
 
     // compute cona which is (pm,theta T A theta pm)
     cona = 0.0;
+    NPB_PARALLEL_BEGIN(R_DIFFUSION_8)
     #pragma omp parallel default(shared) private(im,ie,i,j,k) \
                                          reduction(+:cona)
     {
+    NPB_FOR_BEGIN(R_DIFFUSION_9)
     #pragma omp for nowait
     for (ie = 0; ie < nelt; ie++) {
       for (k = 0; k < LX1; k++) {
@@ -176,7 +192,9 @@ void diffusion(logical ifmortar)
       ppmor[im] = ppmor[im]*tmmor[im];
       cona = cona + pmorx[im]*ppmor[im];
     }
-    } //end parallel
+    NPB_FOR_END()
+    }
+    NPB_PARALLEL_END() //end parallel
 
     // compute am
     cona = rho1/cona;

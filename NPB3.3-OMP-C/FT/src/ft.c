@@ -46,6 +46,7 @@
 #include "global.h"
 #include "randdp.h"
 #include "timers.h"
+#include "region_info.h"
 #include "print_results.h"
 
 
@@ -87,7 +88,6 @@ static void compute_initial_conditions(void *ou0, int d1, int d2, int d3);
 static double ipow46(double a, int exponent);
 static void setup();
 static void compute_indexmap(void *ot, int d1, int d2, int d3);
-static void print_timers();
 static void fft(int dir, dcomplex x1[NTOTALP], dcomplex x2[NTOTALP]);
 static void cffts1(int is, int d1, int d2, int d3, void *ox, void *oxout);
 static void cffts2(int is, int d1, int d2, int d3, void *ox, void *oxout);
@@ -149,6 +149,7 @@ int main(int argc, char *argv[])
   fft(1, u1, u0);
   if (timers_enabled) timer_stop(T_fft);
 
+  npb_time_begin();
   for (iter = 1; iter <= niter; iter++) {
     if (timers_enabled) timer_start(T_evolve);
     evolve(u0, u1, twiddle, dims[0], dims[1], dims[2]);
@@ -162,6 +163,7 @@ int main(int argc, char *argv[])
     checksum(iter, u1, dims[0], dims[1], dims[2]);
     if (timers_enabled) timer_stop(T_checksum);
   }
+  npb_time_end();
 
   verify(NX, NY, NZ, niter, &verified, &Class);
 
@@ -179,7 +181,7 @@ int main(int argc, char *argv[])
   print_results("FT", Class, NX, NY, NZ, niter,
                 total_time, mflops, "          floating point", verified, 
                 NPBVERSION, COMPILETIME, CS1, CS2, CS3, CS4, CS5, CS6, CS7);
-  if (timers_enabled) print_timers();
+  npb_time_report();
 
   return 0;
 }
@@ -220,6 +222,7 @@ static void evolve(void *ou0, void *ou1, void *ot, int d1, int d2, int d3)
 
   int i, j, k;
 
+  NPB_PARALLEL_FOR_BEGIN(R_EVOLVE_PARALLEL_FOR_1)
   #pragma omp parallel for default(shared) private(i,j,k)
   for (k = 0; k < d3; k++) {
     for (j = 0; j < d2; j++) {
@@ -229,6 +232,7 @@ static void evolve(void *ou0, void *ou1, void *ot, int d1, int d2, int d3)
       }
     }
   }
+  NPB_PARALLEL_FOR_END()
 }
 
 
@@ -307,15 +311,9 @@ static double ipow46(double a, int exponent)
 
 static void setup()
 {
-  FILE *fp;
   debug = false;
 
-  if ((fp = fopen("timer.flag", "r")) != NULL) {
-    timers_enabled = true;
-    fclose(fp);
-  } else {
-    timers_enabled = false;
-  }
+  timers_enabled = npb_time_enabled();
 
   niter = NITER_DEFAULT;
   {
@@ -407,28 +405,7 @@ static void compute_indexmap(void *ot, int d1, int d2, int d3)
 }
 
 
-static void print_timers()
-{
-  int i;
-  double t, t_m;
-  char *tstrings[T_max+1];
-  tstrings[1] = "          total "; 
-  tstrings[2] = "          setup "; 
-  tstrings[3] = "            fft "; 
-  tstrings[4] = "         evolve "; 
-  tstrings[5] = "       checksum "; 
-  tstrings[6] = "           fftx "; 
-  tstrings[7] = "           ffty "; 
-  tstrings[8] = "           fftz ";
 
-  t_m = timer_read(T_total);
-  if (t_m <= 0.0) t_m = 1.00;
-  for (i = 1; i <= T_max; i++) {
-    t = timer_read(i);
-    printf(" timer %2d(%16s) :%9.4f (%6.2f%%)\n", 
-        i, tstrings[i], t, t*100.0/t_m);
-  }
-}
 
 
 //---------------------------------------------------------------------
@@ -462,6 +439,7 @@ static void cffts1(int is, int d1, int d2, int d3, void *ox, void *oxout)
   logd1 = ilog2(d1);
 
   if (timers_enabled) timer_start(T_fftx);
+  NPB_PARALLEL_FOR_BEGIN(R_CFFTS1_PARALLEL_FOR_1)
   #pragma omp parallel for default(shared) private(i,j,k,jj)
   for (k = 0; k < d3; k++) {
     for (jj = 0; jj <= d2 - fftblock; jj += fftblock) {
@@ -480,6 +458,7 @@ static void cffts1(int is, int d1, int d2, int d3, void *ox, void *oxout)
       }
     }
   }
+  NPB_PARALLEL_FOR_END()
   if (timers_enabled) timer_stop(T_fftx);
 }
 
@@ -495,6 +474,7 @@ static void cffts2(int is, int d1, int d2, int d3, void *ox, void *oxout)
   logd2 = ilog2(d2);
 
   if (timers_enabled) timer_start(T_ffty);
+  NPB_PARALLEL_FOR_BEGIN(R_CFFTS2_PARALLEL_FOR_1)
   #pragma omp parallel for default(shared) private(i,j,k,ii)
   for (k = 0; k < d3; k++) {
     for (ii = 0; ii <= d1 - fftblock; ii += fftblock) {
@@ -513,6 +493,7 @@ static void cffts2(int is, int d1, int d2, int d3, void *ox, void *oxout)
       }
     }
   }
+  NPB_PARALLEL_FOR_END()
   if (timers_enabled) timer_stop(T_ffty);
 }
 
@@ -528,6 +509,7 @@ static void cffts3(int is, int d1, int d2, int d3, void *ox, void *oxout)
   logd3 = ilog2(d3);
 
   if (timers_enabled) timer_start(T_fftz);
+  NPB_PARALLEL_FOR_BEGIN(R_CFFTS3_PARALLEL_FOR_1)
   #pragma omp parallel for default(shared) private(i,j,k,ii)
   for (j = 0; j < d2; j++) {
     for (ii = 0; ii <= d1 - fftblock; ii += fftblock) {
@@ -546,6 +528,7 @@ static void cffts3(int is, int d1, int d2, int d3, void *ox, void *oxout)
       }
     }
   }
+  NPB_PARALLEL_FOR_END()
   if (timers_enabled) timer_stop(T_fftz);
 }
 
@@ -691,10 +674,12 @@ static void checksum(int i, void *ou1, int d1, int d2, int d3)
   int j, q, r, s;
   dcomplex chk = dcmplx(0.0, 0.0);
 
+  NPB_PARALLEL_BEGIN(R_CHECKSUM_PARALLEL_1)
   #pragma omp parallel default(shared) private(i,q,r,s)
   {
     dcomplex my_chk = dcmplx(0.0, 0.0);
 
+    NPB_FOR_BEGIN(R_CHECKSUM_FOR_1)
     #pragma omp for nowait
     for (j = 1; j <= 1024; j++) {
       q = j % NX;
@@ -702,12 +687,14 @@ static void checksum(int i, void *ou1, int d1, int d2, int d3)
       s = 5*j % NZ;
       my_chk = dcmplx_add(my_chk, u1[s][r][q]);
     }
+    NPB_FOR_END()
 
     #pragma omp critical
     {
       chk = dcmplx_add(chk, my_chk);
     }
   }
+  NPB_PARALLEL_END()
 
   chk = dcmplx_div2(chk, (double)(NTOTAL));
 

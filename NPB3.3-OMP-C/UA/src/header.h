@@ -35,6 +35,7 @@
 #include <omp.h>
 #include "npbparams.h"
 #include "type.h"
+#include "region_info.h"
 
 // Array dimensions     
 #define LX1       5

@@ -250,30 +250,12 @@ int main(int argc, char *argv[])
   char Class;
   logical ifmortar = false, verified;
 
-  double t2, trecs[t_last+1];
-  char *t_names[t_last+1];
-
   //---------------------------------------------------------------------
   // Read input file (if it exists), else take
   // defaults from parameters
   //---------------------------------------------------------------------
   FILE *fp;
-  if ((fp = fopen("timer.flag", "r")) != NULL) {
-    timeron = true;
-    t_names[t_total] = "total";
-    t_names[t_init] = "init";
-    t_names[t_convect] = "convect";
-    t_names[t_transfb_c] = "transfb_c";
-    t_names[t_diffusion] = "diffusion";
-    t_names[t_transf] = "transf";
-    t_names[t_transfb] = "transfb";
-    t_names[t_adaptation] = "adaptation";
-    t_names[t_transf2] = "transf+b";
-    t_names[t_add2] = "add2";
-    fclose(fp);
-  } else {
-    timeron = false;
-  }
+  timeron = npb_time_enabled();
 
   printf("\n\n NAS Parallel Benchmarks (NPB3.3-OMP-C) - UA Benchmark\n\n");
 
@@ -355,6 +337,7 @@ int main(int argc, char *argv[])
         if (i != t_init) timer_clear(i);
       }
       timer_start(1);
+      npb_time_begin();
     }
 
     // advance the convection step 
@@ -367,14 +350,18 @@ int main(int argc, char *argv[])
     // compute residual for diffusion term based on intital guess
 
     // compute the left hand side of equation, lapacian t
+    NPB_PARALLEL_BEGIN(R_MAIN_1)
     #pragma omp parallel default(shared) private(ie,k,j,i) 
     {
+    NPB_FOR_BEGIN(R_MAIN_2)
     #pragma omp for
     for (ie = 0; ie < nelt; ie++) {
       laplacian(ta2[ie], ta1[ie], size_e[ie]);
     }
+    NPB_FOR_END()
 
     // compute the residual 
+    NPB_FOR_BEGIN(R_MAIN_3)
     #pragma omp for
     for (ie = 0; ie < nelt; ie++) {
       for (k = 0; k < LX1; k++) {
@@ -385,7 +372,9 @@ int main(int argc, char *argv[])
         }
       }
     }
-    } //end parallel
+    NPB_FOR_END()
+    }
+    NPB_PARALLEL_END() //end parallel
 
     // get the residual on mortar 
     transfb(rmor, (double *)trhs);
@@ -394,6 +383,7 @@ int main(int argc, char *argv[])
     // apply boundary condition: zero out the residual on domain boundaries
 
     // apply boundary conidtion to trhs
+    NPB_PARALLEL_FOR_BEGIN(R_MAIN_4)
     #pragma omp parallel for default(shared) private(ie,iside)
     for (ie = 0; ie < nelt; ie++) {
       for (iside = 0; iside < NSIDES; iside++) {
@@ -402,6 +392,7 @@ int main(int argc, char *argv[])
         }
       }
     }
+    NPB_PARALLEL_FOR_END()
     // apply boundary condition to rmor
     col2(rmor, tmmor, nmor);
 
@@ -425,6 +416,7 @@ int main(int argc, char *argv[])
     nelt_tot = nelt_tot + (double)(nelt);
   }
 
+  npb_time_end();
   timer_stop(1);
   tmax = timer_read(1);
 
@@ -439,30 +431,7 @@ int main(int argc, char *argv[])
                 verified, NPBVERSION, COMPILETIME, CS1, CS2, CS3, CS4, CS5, 
                 CS6, "(none)");
 
-  //---------------------------------------------------------------------
-  // More timers
-  //---------------------------------------------------------------------
-  if (timeron) {
-    for (i = 1; i <= t_last; i++) {
-      trecs[i] = timer_read(i);
-    }
-    if (tmax == 0.0) tmax = 1.0;
-
-    printf("  SECTION     Time (secs)\n");
-    for (i = 1; i <= t_last; i++) {
-      printf("  %-10s:%9.3f  (%6.2f%%)\n",
-          t_names[i], trecs[i], trecs[i]*100./tmax);
-      if (i == t_transfb_c) {
-        t2 = trecs[t_convect] - trecs[t_transfb_c];
-        printf("    --> %11s:%9.3f  (%6.2f%%)\n", 
-            "sub-convect", t2, t2*100./tmax);
-      } else if (i == t_transfb) {
-        t2 = trecs[t_diffusion] - trecs[t_transf] - trecs[t_transfb];
-        printf("    --> %11s:%9.3f  (%6.2f%%)\n", 
-            "sub-diffuse", t2, t2*100./tmax);
-      }
-    }
-  }
+  npb_time_report();
 
   return 0;
 }

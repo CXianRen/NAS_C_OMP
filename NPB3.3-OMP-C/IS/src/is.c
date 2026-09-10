@@ -41,6 +41,7 @@
  *************************************************************************/
 
 #include "npbparams.h"
+#include "region_info.h"
 #include <stdlib.h>
 #include <stdio.h>
 #ifdef _OPENMP
@@ -591,6 +592,8 @@ void full_verify( void )
 /*****************************************************************/
 
 
+static int npb_rank_timing;
+
 void rank( int iteration )
 {
 
@@ -622,6 +625,8 @@ void rank( int iteration )
     key_buff_ptr = key_buff1;
 
 
+    if (npb_rank_timing) npb_time_begin();
+    NPB_PARALLEL_BEGIN(R_RANK_PARALLEL_1)
 #pragma omp parallel private(i, k)
   {
     INT_TYPE *work_buff, m, k1, k2;
@@ -645,9 +650,11 @@ void rank( int iteration )
         work_buff[i] = 0;
 
 /*  Determine the number of keys in each bucket */
+    NPB_FOR_BEGIN(R_RANK_FOR_1)
     #pragma omp for schedule(static)
     for( i=0; i<NUM_KEYS; i++ )
         work_buff[key_array[i] >> shift]++;
+    NPB_FOR_END()
 
 /*  Accumulative bucket sizes are the bucket pointers.
     These are global sizes accumulated upon to each bucket */
@@ -665,12 +672,14 @@ void rank( int iteration )
 
 
 /*  Sort into appropriate bucket */
+    NPB_FOR_BEGIN(R_RANK_FOR_2)
     #pragma omp for schedule(static)
     for( i=0; i<NUM_KEYS; i++ )  
     {
         k = key_array[i];
         key_buff2[bucket_ptrs[k >> shift]++] = k;
     }
+    NPB_FOR_END()
 
 /*  The bucket pointers now point to the final accumulated sizes */
     if (myid < num_procs-1) {
@@ -686,8 +695,10 @@ void rank( int iteration )
     a dynamic schedule should improve load balance, thus, performance     */
 
 #ifdef SCHED_CYCLIC
+    NPB_FOR_BEGIN(R_RANK_FOR_3)
     #pragma omp for schedule(static,1)
 #else
+    NPB_FOR_BEGIN(R_RANK_FOR_4)
     #pragma omp for schedule(dynamic)
 #endif
     for( i=0; i< NUM_BUCKETS; i++ ) {
@@ -716,6 +727,7 @@ void rank( int iteration )
             key_buff_ptr[k] += key_buff_ptr[k-1];
 
     }
+    NPB_FOR_END()
 
 #else /*USE_BUCKETS*/
 
@@ -734,6 +746,7 @@ void rank( int iteration )
     own indexes to determine how many of each there are: their
     individual population                                       */
 
+    NPB_FOR_BEGIN(R_RANK_FOR_5)
     #pragma omp for nowait schedule(static)
     for( i=0; i<NUM_KEYS; i++ )
         work_buff[key_buff_ptr2[i]]++;  /* Now they have individual key   */
@@ -745,18 +758,23 @@ void rank( int iteration )
     for( i=0; i<MAX_KEY-1; i++ )   
         work_buff[i+1] += work_buff[i];
 
+    NPB_FOR_END()
     #pragma omp barrier
 
 /*  Accumulate the global key population */
     for( k=1; k<num_procs; k++ ) {
+        if (k == 1 && myid == 0) npb_time_start(R_RANK_ACCUMULATE);
         #pragma omp for nowait schedule(static)
         for( i=0; i<MAX_KEY; i++ )
             key_buff_ptr[i] += key_buff1_aptr[k][i];
     }
+    if (num_procs > 1 && myid == 0) npb_time_stop(R_RANK_ACCUMULATE);
 
 #endif /*USE_BUCKETS*/
 
   } /*omp parallel*/
+    NPB_PARALLEL_END()
+    if (npb_rank_timing) npb_time_end();
 
 /* This is the partial verify test section */
 /* Observe that test_rank_array vals are   */
@@ -899,15 +917,8 @@ int main( int argc, char **argv )
 
     double          timecounter;
 
-    FILE            *fp;
-
-
 /*  Initialize timers  */
-    timer_on = 0;            
-    if ((fp = fopen("timer.flag", "r")) != NULL) {
-        fclose(fp);
-        timer_on = 1;
-    }
+    timer_on = npb_time_enabled();
     timer_clear( 0 );
     if (timer_on) {
         timer_clear( 1 );
@@ -980,6 +991,7 @@ int main( int argc, char **argv )
     if( CLASS != 'S' ) printf( "\n   iteration\n" );
 
 /*  Start timer  */             
+    npb_rank_timing = 1;
     timer_start( 0 );
 
 
@@ -992,6 +1004,7 @@ int main( int argc, char **argv )
 
 
 /*  End of timing, obtain maximum time of all processors */
+    npb_rank_timing = 0;
     timer_stop( 0 );
     timecounter = timer_read( 0 );
 
@@ -1029,24 +1042,7 @@ int main( int argc, char **argv )
                      CLINKFLAGS );
 
 
-/*  Print additional timers  */
-    if (timer_on) {
-       double t_total, t_percent;
-
-       t_total = timer_read( 3 );
-       printf("\nAdditional timers -\n");
-       printf(" Total execution: %8.3f\n", t_total);
-       if (t_total == 0.0) t_total = 1.0;
-       timecounter = timer_read(1);
-       t_percent = timecounter/t_total * 100.;
-       printf(" Initialization : %8.3f (%5.2f%%)\n", timecounter, t_percent);
-       timecounter = timer_read(0);
-       t_percent = timecounter/t_total * 100.;
-       printf(" Benchmarking   : %8.3f (%5.2f%%)\n", timecounter, t_percent);
-       timecounter = timer_read(2);
-       t_percent = timecounter/t_total * 100.;
-       printf(" Sorting        : %8.3f (%5.2f%%)\n", timecounter, t_percent);
-    }
+    npb_time_report();
 
     return 0;
          /**************************/

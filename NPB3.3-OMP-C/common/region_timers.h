@@ -2,6 +2,9 @@
 #define NPB_REGION_TIMERS_H
 
 #include <omp.h>
+#ifndef NPB_REGION_TIMING
+#define NPB_REGION_TIMING 1
+#endif
 #define NPB_TIME_MASTER _Pragma("omp master")
 
 #define NPB_MAX_REGIONS 256

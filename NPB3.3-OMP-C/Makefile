@@ -1,8 +1,9 @@
 .DEFAULT_GOAL := all
 
 CC := clang
-CLANG ?= clang-18
+CLANG ?= clang
 PYTHON ?= python3
+INSTRUMENT ?= 1
 INSTRUMENT_FLAGS ?= $(CPPFLAGS) $(filter -D% -U% -I% -std=%,$(NPB_CFLAGS))
 NPB_DIR := .
 BUILD_DIR ?= .build
@@ -55,6 +56,7 @@ all: check $(TARGETS)
 $(TARGETS): | check
 
 check:
+	@case "$(INSTRUMENT)" in 0|1) ;; *) echo "INSTRUMENT must be 0 or 1"; exit 2 ;; esac
 	@test -n "$(strip $(BENCHMARKS))" || { echo "BENCHMARKS must not be empty"; exit 2; }
 	@test -n "$(strip $(CLASSES))" || { echo "CLASSES must not be empty"; exit 2; }
 	@test -z "$(UNKNOWN_BENCHMARKS)" || { echo "Unknown benchmark(s): $(UNKNOWN_BENCHMARKS)"; exit 2; }
@@ -74,20 +76,22 @@ $(MAKEDEF): Makefile FORCE
 		'CFLAGS = $(NPB_CFLAGS)' 'CLINKFLAGS = $(NPB_LDFLAGS)' \
 		'RAND = randdp' 'CPPFLAGS = $(CPPFLAGS)' \
 		'CLANG = $(CLANG)' 'INSTRUMENT_FLAGS = $(INSTRUMENT_FLAGS)' \
-		'PYTHON = $(PYTHON)' \
+		'PYTHON = $(PYTHON)' 'INSTRUMENT = $(INSTRUMENT)' \
 		$(foreach b,$(ALL_BENCHMARKS),'$(b)_SOURCES = $($(b)_SOURCES)') > "$@.tmp"
 	@cmp -s "$@.tmp" "$@" && rm "$@.tmp" || mv "$@.tmp" "$@"
 
 define BUILD_BINARY
-$(BIN_DIR)/$(1).$(2): $$($(1)_SOURCES) $$($(1)_COMMON) $(COMMON_HEADERS) $(wildcard $(NPB_DIR)/$(1)/src/*.h $(NPB_DIR)/$(1)/src/*.incl) $(NPB_DIR)/tools/instrument_regions.py $(SETPARAMS) $(MAKEDEF) Makefile
+$(BIN_DIR)/$(1).$(2): $$($(1)_SOURCES) $$($(1)_COMMON) $(COMMON_HEADERS) $(wildcard $(NPB_DIR)/$(1)/src/*.h $(NPB_DIR)/$(1)/src/*.incl) $(if $(filter 1,$(INSTRUMENT)),$(NPB_DIR)/tools/instrument_regions.py) $(SETPARAMS) $(MAKEDEF) Makefile
 	@mkdir -p "$(BUILD_DIR)/$(1).$(2)" "$(BIN_DIR)"
 	@cd "$(BUILD_DIR)/$(1).$(2)" && ../setparams "$(1)" "$(2)"
+ifeq ($(INSTRUMENT),1)
 	$(PYTHON) $(NPB_DIR)/tools/instrument_regions.py $$($(1)_SOURCES) \
 		--clang "$(CLANG)" --output "$(BUILD_DIR)/$(1).$(2)/instrumented" -- \
 		-I"$(BUILD_DIR)/$(1).$(2)" -I"$(NPB_DIR)/$(1)/src" $(INSTRUMENT_FLAGS)
-	$(CC) $(CPPFLAGS) $(NPB_CFLAGS) \
+endif
+	$(CC) $(CPPFLAGS) $(NPB_CFLAGS) -DNPB_REGION_TIMING=$(INSTRUMENT) \
 		-I"$(BUILD_DIR)/$(1).$(2)" -I"$(NPB_DIR)/common" -I"$(NPB_DIR)/$(1)/src" \
-		"$(BUILD_DIR)/$(1).$(2)/instrumented/"*.c $$($(1)_COMMON) -o "$$@" $(NPB_LDFLAGS) -lm
+		$(if $(filter 1,$(INSTRUMENT)),"$(BUILD_DIR)/$(1).$(2)/instrumented/"*.c,$$($(1)_SOURCES)) $$($(1)_COMMON) -o "$$@" $(NPB_LDFLAGS) -lm
 endef
 
 $(foreach b,$(ALL_BENCHMARKS),\

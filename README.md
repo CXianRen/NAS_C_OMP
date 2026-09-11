@@ -6,7 +6,7 @@ serial implementation removed.
 
 The benchmark sources remain organized under `NPB3.3-OMP-C/<BENCHMARK>/src`.
 A standalone GNU Makefile is provided inside `NPB3.3-OMP-C`, so an external
-build harness is no longer required. Builds require Python 3 and Clang 18
+build harness is no longer required. Instrumented builds require Python 3 and Clang 18
 (`CLANG=...` selects another parser), plus the selected C/OpenMP compiler.
 
 ## Build
@@ -23,6 +23,21 @@ Select benchmarks and classes explicitly:
 make -C NPB3.3-OMP-C -j BENCHMARKS="CG MG" CLASSES="S A C D"
 make -C NPB3.3-OMP-C BENCHMARKS=CG CLASS=D
 ```
+
+Compile without region instrumentation, using LLVM/OpenMP:
+
+```sh
+make -C NPB3.3-OMP-C -j BENCHMARKS=MG CLASS=B CC=clang INSTRUMENT=0 \
+  BUILD_DIR=.build-plain BIN_DIR=bin-plain
+OMP_NUM_THREADS=4 ./NPB3.3-OMP-C/bin-plain/MG.B
+```
+
+`INSTRUMENT=0` compiles the original sources directly, skips Python/Clang AST
+generation, and compiles out the region timing hooks, arrays and report.
+Only the total-time measurements needed for the standard NAS output remain.
+`NPB_TIME_REPORT=1` cannot enable region reporting in this build. The default
+is `INSTRUMENT=1`; changing this option rebuilds binaries even when reusing
+the same output directories. Separate directories keep both versions available.
 
 Binaries are written to `NPB3.3-OMP-C/bin/` as `<BENCHMARK>.<CLASS>`, for
 example `NPB3.3-OMP-C/bin/CG.S`. Unsupported benchmark/class combinations are

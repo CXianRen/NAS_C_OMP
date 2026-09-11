@@ -3,9 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-static double start[NPB_MAX_REGIONS], elapsed[NPB_MAX_REGIONS];
 static double iteration_start, iteration_elapsed;
-static int enabled = -1, iteration_running;
+static int iteration_running;
+#if NPB_REGION_TIMING
+static double start[NPB_MAX_REGIONS], elapsed[NPB_MAX_REGIONS];
+static int enabled = -1;
 /* Accessed only by the primary thread. Nested parallel timing is unsupported. */
 static int pending_nowait = -1;
 int npb_time_active;
@@ -19,22 +21,28 @@ int npb_time_enabled(void)
   }
   return enabled;
 }
+#endif
 
 void npb_time_begin(void)
 {
   iteration_running = 1;
   iteration_start = omp_get_wtime();
+#if NPB_REGION_TIMING
   npb_time_active = npb_time_enabled();
+#endif
 }
 
 void npb_time_end(void)
 {
   if (!iteration_running) return;
   iteration_elapsed += omp_get_wtime() - iteration_start;
+#if NPB_REGION_TIMING
   npb_time_active = 0;
+#endif
   iteration_running = 0;
 }
 
+#if NPB_REGION_TIMING
 static void finish_nowait(double end)
 {
   if (pending_nowait < 0) return;
@@ -84,12 +92,14 @@ double npb_time_read(int id)
 {
   return elapsed[id];
 }
+#endif
 
 double npb_time_total(void)
 {
   return iteration_elapsed;
 }
 
+#if NPB_REGION_TIMING
 static double step_percent(double seconds)
 {
   return iteration_elapsed > 0 ? 100.0 * seconds / iteration_elapsed : 0.0;
@@ -116,3 +126,6 @@ void npb_time_report(void)
                npb_regions[f].name, elapsed[f], step_percent(elapsed[f]));
   }
 }
+#else
+void npb_time_report(void) {}
+#endif

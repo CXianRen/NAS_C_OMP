@@ -14,6 +14,7 @@ for binding in false close spread primary; do
     printf '\n=== %s ===\n' "$binding"
     # Start a fresh runtime per policy, without vendor affinity overrides.
     env -u KMP_AFFINITY -u GOMP_CPU_AFFINITY \
+        KMP_TOPOLOGY_METHOD=hwloc \
         OMP_DYNAMIC=false OMP_NUM_THREADS="$threads" \
         OMP_PLACES="$places" OMP_PROC_BIND="$binding" ./binding_demo
 done

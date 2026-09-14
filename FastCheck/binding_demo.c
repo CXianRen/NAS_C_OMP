@@ -63,6 +63,7 @@ int main(void)
         int tid = omp_get_thread_num();
         int team = omp_get_num_threads();
         int place = omp_get_place_num();
+        // logical id, 与 lscpu 输出的 CPU 编号一致
         int cpu = sched_getcpu();
         cpu_set_t mask;
         CPU_ZERO(&mask);
@@ -77,6 +78,11 @@ int main(void)
                    omp_get_proc_bind() == omp_proc_bind_false ? "no" : "yes");
         }
         /* Serialize printing only; each worker took its own snapshot above. */
+        // tid: OpenMP team 内的线程编号
+        // cpu: 当前线程运行的 CPU 编号
+        // place: 当前线程所在的 place 编号
+        // place_cpus: 当前 place 包含的 CPU 列表
+        // allowed_cpus: 当前线程允许运行的 CPU 列表
         const char *labels[] = {"tid", "cpu", "place", "place_cpus", "allowed_cpus"};
         for (int row = 0; row < 5; ++row) {
             for (int turn = 0; turn < team; ++turn) {

@@ -45,6 +45,7 @@ void y_solve()
   int i, j, k, j1, j2, m;
   double ru1, fac1, fac2;
 
+  PARALLEL_START(&sp_control, SP_P_Y_SOLVE);
   #pragma omp parallel for default(shared) private(i,j,k,j1,j2,m, \
                                                    ru1,fac1,fac2)
   for (k = 1; k <= nz2; k++) {
@@ -287,6 +288,7 @@ void y_solve()
       }
     }
   }
+  PARALLEL_END(&sp_control, SP_P_Y_SOLVE);
 
   pinvr();
 }

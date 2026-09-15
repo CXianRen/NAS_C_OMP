@@ -1,6 +1,7 @@
 # HAMS 线程绑定 API
 
 HAMS 接收 `hams_binding_cfg { thread_number, mask, tid_to_cpu }`，设置后续 OpenMP 并行区的线程数和 CPU 绑定。使用 C++17、标准库、Linux 和 OpenMP。
+HAMS 只实现绑定；配置选择、callback 注册和统计由上层调优方法负责。
 
 `mask` 直接使用 `<bitset>` 中的 `std::bitset<HAMS_CPU_COUNT>`：`cfg.mask[cpu] = true` 置位，`cfg.mask[cpu]` 查询，`==` 比较配置。无需第三方 bitset 库。
 
@@ -61,7 +62,7 @@ env -u OMP_PLACES -u KMP_AFFINITY -u GOMP_CPU_AFFINITY \
 
 ## 简单 UT
 
-[hams_binding_ut.cpp](hams_binding_ut.cpp) 独立测试三次连续切换：
+[hams_binding_ut.cpp](../ut/hams_binding_ut.cpp) 独立测试三次连续切换：
 
 | 阶段（满线程数为 8） | 线程数 | CPU ID |
 | --- | --- | --- |
@@ -70,7 +71,7 @@ env -u OMP_PLACES -u KMP_AFFINITY -u GOMP_CPU_AFFINITY \
 | half spread | 4 | 0、2、4、6 |
 
 ```sh
-make -C framework/hams test THREADS=8
+make -C framework/ut hams-test THREADS=8
 ```
 
 从 benchmark 根目录执行。`THREADS` 取本机支持的偶数，且不超过 `HAMS_CPU_COUNT`。

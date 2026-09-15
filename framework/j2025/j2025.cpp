@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdio>
 #include <limits>
 #include <new>
 #include <vector>
@@ -78,12 +79,8 @@ static void check_variance() {}
 /* TODO：后续加入 NUMA balancing；FIRST_TOUCH 当前保留应用已有页面布局。 */
 static void enable_numa_balancing() {}
 
-/* step 仅通知新迭代的边界；当前算法不读时间、不重置 region 状态。 */
-static void step_notification(void *, int) {}
-
 /* 选择本次唯一一次 region 执行的配置，搜索跨后续调用推进。 */
-static const hams_binding_cfg *select_cfg(void *context, int id) {
-  auto *tuner = static_cast<j2025 *>(context);
+const hams_binding_cfg *j2025_select_cfg(j2025 *tuner, int id) {
   auto &state = state_of(tuner, id);
   if (state.current == STABLE) return &state.cfg;
 
@@ -104,8 +101,7 @@ static const hams_binding_cfg *select_cfg(void *context, int id) {
 }
 
 /* 接收单次耗时；预热和 STABLE 样本不参与搜索。 */
-static void observe(void *context, int id, double seconds) {
-  auto *tuner = static_cast<j2025 *>(context);
+void j2025_observe(j2025 *tuner, int id, double seconds) {
   auto &state = state_of(tuner, id);
   assert(seconds >= 0 && seconds < std::numeric_limits<double>::infinity());
   switch (state.current) {
@@ -152,14 +148,17 @@ j2025 *j2025_create(int region_count, int max_threads) {
   return tuner;
 }
 
-/* 所有实例共用 callback 表，算法数据仅保存在传入的 context 中。 */
-const region_control_callbacks *j2025_callbacks() {
-  static const region_control_callbacks callbacks{
-      step_notification, select_cfg, observe, step_notification};
-  return &callbacks;
-}
-
-/* 释放各 region 样本及控制状态。 */
-void j2025_destroy(j2025 *tuner) {
+/* 析构时汇报最后一次选择的配置；跳过未使用的 region，不再推进搜索。 */
+void j2025_destroy(j2025 *tuner, const region_info *regions) {
+  for (std::size_t id = 0; regions && id < tuner->regions.size(); ++id) {
+    const auto &cfg = tuner->regions[id].cfg;
+    if (!cfg.thread_number) continue;
+    // 与计时报告共用首次 START 捕获的函数名和行号。
+    std::printf("J2025 final region=%s", regions[id].name);
+    if (regions[id].line) std::printf(":%d", regions[id].line);
+    // mask 只显示冷启动线程上限的宽度，最右侧为 CPU 0。
+    std::printf(" threads=%d mask=%s\n", cfg.thread_number,
+                cfg.mask.to_string().substr(HAMS_CPU_COUNT - tuner->max_threads).c_str());
+  }
   delete tuner;
 }

@@ -42,12 +42,14 @@ void exact_rhs()
   double dtemp[5], xi, eta, zeta, dtpp;
   int m, i, j, k, ip1, im1, jp1, jm1, km1, kp1;
 
+  PARALLEL_START(&sp_control, SP_P_EXACT_RHS);
   #pragma omp parallel default(shared) \
           private(i,j,k,m,zeta,eta,xi,dtpp,im1,ip1,jm1,jp1,km1,kp1,dtemp)
   {
   //---------------------------------------------------------------------
   // initialize                                  
   //---------------------------------------------------------------------
+  FOR_START(&sp_control, SP_F_EXACT_RHS_1);
   #pragma omp for schedule(static)
   for (k = 0; k <= grid_points[2]-1; k++) {
     for (j = 0; j <= grid_points[1]-1; j++) {
@@ -58,10 +60,12 @@ void exact_rhs()
       }
     }
   }
+  FOR_END(&sp_control, SP_F_EXACT_RHS_1);
 
   //---------------------------------------------------------------------
   // xi-direction flux differences                      
   //---------------------------------------------------------------------
+  FOR_START(&sp_control, SP_F_EXACT_RHS_2);
   #pragma omp for schedule(static) nowait
   for (k = 1; k <= grid_points[2]-2; k++) {
     zeta = (double)k * dnzm1;
@@ -157,6 +161,8 @@ void exact_rhs()
   //---------------------------------------------------------------------
   // eta-direction flux differences             
   //---------------------------------------------------------------------
+  FOR_END(&sp_control, SP_F_EXACT_RHS_2);
+  FOR_START(&sp_control, SP_F_EXACT_RHS_3);
   #pragma omp for schedule(static)
   for (k = 1; k <= grid_points[2]-2; k++) {
     zeta = (double)k * dnzm1;
@@ -248,10 +254,12 @@ void exact_rhs()
       }
     }
   }
+  FOR_END(&sp_control, SP_F_EXACT_RHS_3);
 
   //---------------------------------------------------------------------
   // zeta-direction flux differences                      
   //---------------------------------------------------------------------
+  FOR_START(&sp_control, SP_F_EXACT_RHS_4);
   #pragma omp for schedule(static)
   for (j = 1; j <= grid_points[1]-2; j++) {
     eta = (double)j * dnym1;
@@ -344,10 +352,12 @@ void exact_rhs()
 
     }
   }
+  FOR_END(&sp_control, SP_F_EXACT_RHS_4);
 
   //---------------------------------------------------------------------
   // now change the sign of the forcing function, 
   //---------------------------------------------------------------------
+  FOR_START(&sp_control, SP_F_EXACT_RHS_5);
   #pragma omp for schedule(static) nowait
   for (k = 1; k <= grid_points[2]-2; k++) {
     for (j = 1; j <= grid_points[1]-2; j++) {
@@ -358,6 +368,8 @@ void exact_rhs()
       }
     }
   }
+  FOR_END(&sp_control, SP_F_EXACT_RHS_5);
   } //end parallel
+  PARALLEL_END(&sp_control, SP_P_EXACT_RHS);
 }
 

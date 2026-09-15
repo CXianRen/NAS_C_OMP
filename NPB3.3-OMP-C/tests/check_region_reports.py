@@ -1,112 +1,111 @@
 #!/usr/bin/env python3
-"""Check parallel/for reports, combined equality, and nowait source ranges."""
+"""Check SP's static region table, manual hooks and parallel/for reports."""
 import argparse
-import hashlib
-import json
 from pathlib import Path
 import re
 
 from report_region_times import parse_log
 
 ROOT = Path(__file__).resolve().parents[1]
-MANUAL = re.compile(r"\bNPB_(?:PARALLEL_FOR|PARALLEL|FOR)_(?:BEGIN|END)\s*\(|\bnpb_time_(?:start|stop)\s*\(")
+HOOK = re.compile(r'\b(PARALLEL|FOR)_(START|END)\(\s*&sp_control\s*,\s*(SP_[PF]_\w+)\s*\)')
+FUNCTION = re.compile(r'^\s*(?:void|int|double)\s+(\w+)\s*\([^;{}]*\)\s*\{', re.MULTILINE)
 
 
-def check_sources():
-    count = 0
-    for bench in ("SP",):
-        directory = ROOT / bench / "src"
-        assert not list(directory.glob("region_info.*")), directory
-        for source in directory.iterdir():
-            if source.suffix in (".c", ".h", ".incl"):
-                assert not MANUAL.search(source.read_text()), source
-                count += 1
-    return count
+# Read only the small hand-written SP table; no source generator or manifest exists.
+def check_sources(directory=ROOT / 'SP/src'):
+    ids = re.findall(r'\b(SP_[PF]_\w+)\s*,', (directory / 'sp_regions.h').read_text())
+    entries = re.findall(r'\[(SP_[PF]_\w+)\]\s*=\s*\{([^}]*)\}',
+                         (directory / 'sp_regions.c').read_text())
+    assert [key for key, _ in entries] == ids
+    table = {}
+    for key, initializer in entries:
+        fields = dict(re.findall(r'\.(\w+)\s*=\s*(-?\w+)', initializer))
+        parent = fields['parent']
+        table[key] = {'parent': None if parent == '-1' else parent,
+                      'combined': int(fields.get('combined', '0')),
+                      'nowait': int(fields.get('nowait', '0'))}
+    for path in directory.glob('*.c'):
+        source = path.read_text()
+        functions = list(FUNCTION.finditer(source))
+        for hook in HOOK.finditer(source):
+            kind, boundary, key = hook.groups()
+            region = table[key]
+            assert boundary not in region, (path, key, 'duplicate hook')
+            region[boundary] = hook.start()
+            if boundary == 'END':
+                continue
+            region['file'] = path
+            region['line'] = source.count('\n', 0, hook.start()) + 1
+            region['function'] = next(f[1] for f in reversed(functions) if f.start() < hook.start())
+            region['label'] = f"{region['function']}:{region['line']}" + (' (nowait)' if region['nowait'] else '')
+            pragma = re.search(r'#pragma omp[^\n]*(?:\\\n[^\n]*)?', source[hook.end():])[0]
+            assert ('PARALLEL' if region['parent'] is None else 'FOR') == kind
+            assert bool(re.search(r'\bparallel\b', pragma)) == (kind == 'PARALLEL')
+            assert bool(re.search(r'\bparallel\s+for\b', pragma)) == bool(region['combined'])
+            assert bool(re.search(r'\bnowait\b', pragma)) == bool(region['nowait'])
+    for key, region in table.items():
+        assert region['START'] < region['END'], key
+        if region['parent'] is not None:
+            owner = table[region['parent']]
+            assert owner['parent'] is None and owner['file'] == region['file'], key
+            assert owner['START'] < region['START'] < region['END'] < owner['END'], key
+    return table
 
 
-def check_manifest(path):
-    manifest = json.loads(path.read_text())
-    sources = {name: Path(name).read_text() for name in manifest["sources"]}
-    for name, digest in manifest["source_sha256"].items():
-        assert hashlib.sha256(sources[name].encode()).hexdigest() == digest, (path, "stale source", name)
-    regions = manifest["regions"]
-    assert [r["id"] for r in regions] == list(range(len(regions))), path
-    for r in regions:
-        lines = sources[r["file"]].splitlines()
-        pragma = lines[r["line"] - 1].strip()
-        expected = {"parallel": "parallel", "combined": "parallel for", "for": "for"}[r["kind"]]
-        assert pragma.startswith("#pragma omp " + expected), (path, r)
-        assert r["line"] <= r["end_line"] <= len(lines), (path, r)
-        label = f"{r['function']}:{r['line']}"
-        if r["nowait"]:
-            label += f"-{r['end_line']} (nowait)"
-            for line in r["loop_lines"]:
-                assert lines[line - 1].strip().startswith("#pragma omp for"), (path, r)
-        assert r["label"] == label, (path, r)
-        if r["kind"] == "for":
-            assert 0 <= r["parent"] < len(regions), (path, r)
-            assert regions[r["parent"]]["kind"] == "parallel", (path, r)
-        else:
-            assert r["parent"] == -1, (path, r)
-    return {r["id"]: (r["label"], r["parent"], r["kind"] == "combined") for r in regions}
-
-
-def check_report(path, manifest_path):
+# Verify captured labels, static parents, shared combined samples and percentages.
+def check_report(path, table):
     result = parse_log(path)
     text = path.read_text()
-    assert "kernel region" not in text and "iteration region" not in text, path
-    rows = result["rows"]
-    assert rows and all(row["level"] in ("parallel", "for") for row in rows), path
-    by_key = {(row["level"], row["region"]): row for row in rows}
+    rows = result['rows']
+    assert rows and all(row['level'] in ('parallel', 'for') for row in rows), path
+    by_key = {(row['level'], row['region']): row for row in rows}
     assert len(rows) == len(by_key), path
-    shares = re.findall(r"  step: ([\d.]+)%", text)
+    shares = re.findall(r'  step: ([\d.]+)%', text)
     assert len(shares) == len(rows), path
-    total = result["total"]
+    total = result['total']
     assert total > 0, path
-    table = check_manifest(manifest_path)
     expected = {}
-    for key, (name, owner, combined) in table.items():
-        kind = "parallel" if owner == -1 else "for"
-        expected[kind, name] = None if owner == -1 else table[owner][0]
-        if combined:
-            expected["for", name] = name
+    for region in table.values():
+        name, owner = region['label'], region['parent']
+        expected['parallel' if owner is None else 'for', name] = (
+            None if owner is None else table[owner]['label'])
+        if region['combined']:
+            expected['for', name] = name
     for row, share in zip(rows, shares):
-        key = row["level"], row["region"]
+        key = row['level'], row['region']
         assert key in expected, (path, row)
-        tolerance = 0.0005 + 100 * 0.5e-9 / total * (1 + row["seconds"] / total)
-        assert abs(float(share) - row["percent_total"]) <= tolerance, (path, row)
-        if row["level"] == "parallel":
-            assert row["depth"] == 0 and row["parent"] == "iteration total", (path, row)
+        tolerance = 0.0005 + 100 * 0.5e-9 / total * (1 + row['seconds'] / total)
+        assert abs(float(share) - row['percent_total']) <= tolerance, (path, row)
+        if row['level'] == 'parallel':
+            assert row['depth'] == 0 and row['parent'] == 'iteration total', (path, row)
             parent_seconds = total
         else:
-            assert row["depth"] == 1 and row["parent"] == expected[key], (path, row)
-            parent_seconds = by_key["parallel", row["parent"]]["seconds"]
-        assert row["seconds"] <= parent_seconds + 1e-9, (path, row)
-        assert abs(row["percent_parent"] - 100 * row["seconds"] / parent_seconds) < 1e-8
-    for name, owner, combined in table.values():
-        if combined and ("parallel", name) in by_key:
-            p, f = by_key["parallel", name], by_key["for", name]
-            assert p["seconds"] == f["seconds"] and p["percent_total"] == f["percent_total"], (path, name)
+            assert row['depth'] == 1 and row['parent'] == expected[key], (path, row)
+            parent_seconds = by_key['parallel', row['parent']]['seconds']
+        assert row['seconds'] <= parent_seconds + 1e-9, (path, row)
+        assert abs(row['percent_parent'] - 100 * row['seconds'] / parent_seconds) < 1e-8
+    for region in table.values():
+        name = region['label']
+        if region['combined'] and ('parallel', name) in by_key:
+            p, f = by_key['parallel', name], by_key['for', name]
+            assert p['seconds'] == f['seconds'] and p['percent_total'] == f['percent_total'], (path, name)
     return result
 
 
+# Without a log, validate just the checked-in metadata and manual hook pairs.
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("directory", type=Path, nargs="?")
-    parser.add_argument("--build-dir", type=Path, default=ROOT / ".build")
-    parser.add_argument("--class", dest="npb_class", default="S")
+    parser.add_argument('path', type=Path, nargs='?', help='SP log or a directory containing SP.log')
+    parser.add_argument('--source-dir', type=Path, default=ROOT / 'SP/src')
     args = parser.parse_args()
-    print(f"PASS: {check_sources()} source files have no manual region instrumentation")
-    if args.directory:
-        logs = [args.directory / (bench + ".log") for bench in ("SP",)
-                if (args.directory / (bench + ".log")).exists()]
-        if not logs:
-            parser.error("no benchmark logs found")
-        for path in logs:
-            manifest = args.build_dir / (path.stem + "." + args.npb_class) / "instrumented/instrumentation.json"
-            result = check_report(path, manifest)
-            print(f"PASS {path.stem}: {len(result['rows'])} rows; parallel parents, combined equality, percentages")
+    table = check_sources(args.source_dir)
+    parallel = sum(region['parent'] is None for region in table.values())
+    print(f'PASS: {len(table)} manual regions ({parallel} parallel, {len(table) - parallel} for)')
+    if args.path:
+        path = args.path / 'SP.log' if args.path.is_dir() else args.path
+        result = check_report(path, table)
+        print(f"PASS SP: {len(result['rows'])} rows; captured labels, parents, combined equality, percentages")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

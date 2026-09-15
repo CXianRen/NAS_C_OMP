@@ -49,12 +49,14 @@ void error_norm(double rms[5])
     rms[m] = 0.0;
   }
 
+  PARALLEL_START(&sp_control, SP_P_ERROR_NORM);
   #pragma omp parallel default(shared) \
           private(i,j,k,m,zeta,eta,xi,add,u_exact,rms_local) shared(rms)
   {
     for (m = 0; m < 5; m++) {
       rms_local[m] = 0.0;
     }
+    FOR_START(&sp_control, SP_F_ERROR_NORM_1);
     #pragma omp for nowait
     for (k = 0; k <= grid_points[2]-1; k++) {
       zeta = (double)k * dnzm1;
@@ -71,11 +73,13 @@ void error_norm(double rms[5])
         }
       }
     }
+    FOR_END(&sp_control, SP_F_ERROR_NORM_1);
     for (m = 0; m < 5; m++) {
       #pragma omp atomic
       rms[m] += rms_local[m];
     }
   } //end parallel
+  PARALLEL_END(&sp_control, SP_P_ERROR_NORM);
 
   for (m = 0; m < 5; m++) {
     for (d = 0; d < 3; d++) {
@@ -96,12 +100,14 @@ void rhs_norm(double rms[5])
     rms[m] = 0.0;
   }
 
+  PARALLEL_START(&sp_control, SP_P_RHS_NORM);
   #pragma omp parallel default(shared) private(i,j,k,m,add,rms_local) \
                                        shared(rms)
   {
     for (m = 0; m < 5; m++) {
       rms_local[m] = 0.0;
     }
+    FOR_START(&sp_control, SP_F_RHS_NORM_1);
     #pragma omp for nowait
     for (k = 1; k <= nz2; k++) {
       for (j = 1; j <= ny2; j++) {
@@ -113,11 +119,13 @@ void rhs_norm(double rms[5])
         } 
       } 
     } 
+    FOR_END(&sp_control, SP_F_RHS_NORM_1);
     for (m = 0; m < 5; m++) {
       #pragma omp atomic
       rms[m] += rms_local[m];
     }
   } //end parallel
+  PARALLEL_END(&sp_control, SP_P_RHS_NORM);
 
   for (m = 0; m < 5; m++) {
     for (d = 0; d < 3; d++) {

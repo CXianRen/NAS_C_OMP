@@ -44,7 +44,8 @@
 
 #include "header.h"
 #include "print_results.h"
-#include "region_control_adapter.h"
+#include <string.h>
+#include "../../../framework/j2025/j2025_runtime.h"
 
 /* common /global/ */
 int grid_points[3], nx2, ny2, nz2;
@@ -157,6 +158,13 @@ int main(int argc, char *argv[])
 
   set_constants();
 
+  const char *report = getenv("NPB_TIME_REPORT");
+  int enabled = report && (!strcmp(report, "1") || !strcmp(report, "true") ||
+                          !strcmp(report, "yes") || !strcmp(report, "on"));
+  region_control_init(&sp_control, sp_regions, SP_REGION_COUNT,
+                      REGION_INSTRUMENT && enabled);
+  j2025_runtime *tuner = j2025_attach(&sp_control);
+
 
   exact_rhs();
 
@@ -168,20 +176,19 @@ int main(int argc, char *argv[])
   adi();
   initialize();
 
-  npb_time_begin();
+  iteration_start(&sp_control);
 
   for (step = 1; step <= niter; step++) {
-    npb_control_step_start(step);
+    step_start(&sp_control, step);
     if ((step % 20) == 0 || step == 1) {
       printf(" Time step %4d\n", step);
     }
 
     adi();
-    npb_control_step_finish(step);
   }
 
-  npb_time_end();
-  tmax = npb_time_total();
+  iteration_end(&sp_control);
+  tmax = iteration_time(&sp_control);
 
   verify(niter, &Class, &verified);
 
@@ -202,7 +209,8 @@ int main(int argc, char *argv[])
                 verified, NPBVERSION,COMPILETIME, CS1, CS2, CS3, CS4, CS5, 
                 CS6, "(none)");
 
-  npb_time_report();
+  region_report(&sp_control);
+  j2025_detach(tuner);
 
   return 0;
 }

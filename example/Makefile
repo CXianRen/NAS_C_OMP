@@ -3,25 +3,39 @@ CXX = clang++-18
 CFLAGS = -O2 -std=c11 -fopenmp -Wall -Wextra
 CXXFLAGS = -O2 -std=c++17 -fopenmp -Wall -Wextra
 LDFLAGS = -fopenmp
+J2025_ENABLE ?= 1
 THREADS ?= 8
 BUILD_DIR ?= build
 TARGET = $(BUILD_DIR)/example
-TIMER_OBJECT = $(BUILD_DIR)/region_timer.o
+CONFIG = $(BUILD_DIR)/config
+C_OBJECTS = $(BUILD_DIR)/region_control.o
 FRAMEWORK = ../framework
-SOURCES = main.cpp $(FRAMEWORK)/j2025/j2025.cpp \
-	$(FRAMEWORK)/region_control/region_control.cpp $(FRAMEWORK)/hams/hams_binding.cpp
-HEADERS = $(FRAMEWORK)/j2025/j2025.h $(FRAMEWORK)/region_control/region_control.h \
-	$(FRAMEWORK)/hams/hams_binding.h $(FRAMEWORK)/timer/region_timer.h
+SOURCES = main.cpp
+HEADERS = $(FRAMEWORK)/j2025/j2025_runtime.h $(FRAMEWORK)/region_control/region_control.h
+ifeq ($(J2025_ENABLE),1)
+SOURCES += $(FRAMEWORK)/j2025/j2025.cpp $(FRAMEWORK)/j2025/j2025_runtime.cpp \
+	$(FRAMEWORK)/hams/hams_binding.cpp
+HEADERS += $(FRAMEWORK)/j2025/j2025.h $(FRAMEWORK)/hams/hams_binding.h
+endif
 
-.PHONY: all run test clean
+.PHONY: all run test clean FORCE
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCES) $(HEADERS) $(TIMER_OBJECT) Makefile
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -UNDEBUG $(SOURCES) $(TIMER_OBJECT) $(LDFLAGS) -o $@
+$(TARGET): $(SOURCES) $(HEADERS) $(C_OBJECTS) $(CONFIG) Makefile
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -DJ2025_ENABLE=$(J2025_ENABLE) -UNDEBUG \
+		$(SOURCES) $(C_OBJECTS) $(LDFLAGS) -o $@
 
-$(TIMER_OBJECT): $(FRAMEWORK)/timer/region_timer.c $(FRAMEWORK)/timer/region_timer.h Makefile | $(BUILD_DIR)
+$(BUILD_DIR)/region_control.o: $(FRAMEWORK)/region_control/region_control.c $(FRAMEWORK)/region_control/region_control.h $(CONFIG) Makefile | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -UNDEBUG -c $< -o $@
+
+FORCE:
+
+$(CONFIG): FORCE | $(BUILD_DIR)
+	@printf '%s\n' 'J2025_ENABLE=$(J2025_ENABLE)' 'CC=$(CC)' 'CXX=$(CXX)' \
+		'CPPFLAGS=$(CPPFLAGS)' 'CFLAGS=$(CFLAGS)' 'CXXFLAGS=$(CXXFLAGS)' \
+		'LDFLAGS=$(LDFLAGS)' > "$@.tmp"
+	@cmp -s "$@.tmp" "$@" && $(RM) "$@.tmp" || mv "$@.tmp" "$@"
 
 $(BUILD_DIR):
 	mkdir -p $@

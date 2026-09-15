@@ -43,6 +43,7 @@ void tzetar()
   double t1, t2, t3, ac, xvel, yvel, zvel, r1, r2, r3, r4, r5;
   double btuz, ac2u, uzik1;
 
+  PARALLEL_START(&sp_control, SP_P_TZETAR);
   #pragma omp parallel for default(shared) \
      private(i,j,k,t1,t2,t3,ac,xvel,yvel,zvel,r1,r2,r3,r4,r5,btuz,ac2u,uzik1)
   for (k = 1; k <= nz2; k++) {
@@ -77,5 +78,6 @@ void tzetar()
       }
     }
   }
+  PARALLEL_END(&sp_control, SP_P_TZETAR);
 }
 

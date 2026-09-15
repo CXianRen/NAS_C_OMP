@@ -1,4 +1,4 @@
-#include "j2025.h"
+#include "../j2025/j2025.h"
 
 #include <cassert>
 #include <cstdio>
@@ -25,14 +25,13 @@ static void check_cfg(const hams_binding_cfg *cfg, int maximum, bool close) {
 /* 仅测试：预热排除、TM 比较、候选缓存、Fibonacci 收敛及 STABLE 固定配置。 */
 static void check_search(int maximum, int optimum, bool close, bool tie = false) {
   j2025 *tuner = j2025_create(1, maximum);
-  const auto *callbacks = j2025_callbacks();
   for (int call = 0; call < 3; ++call) {
-    const auto *cfg = callbacks->select_cfg(tuner, 0);
+    const auto *cfg = j2025_select_cfg(tuner, 0);
     assert(cfg->thread_number == maximum);
     check_cfg(cfg, maximum, false);
     double seconds = cost(maximum, optimum);
     if (!tie && ((call == 1 && close) || (call == 2 && !close))) seconds += 10;
-    callbacks->observe(tuner, 0, call == 0 ? 0 : seconds);
+    j2025_observe(tuner, 0, call == 0 ? 0 : seconds);
   }
 
   std::vector<bool> measured(maximum / 2, false);
@@ -40,8 +39,7 @@ static void check_search(int maximum, int optimum, bool close, bool tie = false)
   bool stable = false;
   int probes = 0;
   for (int call = 0; call < 32; ++call) {
-    callbacks->step_start(tuner, call);
-    const auto *cfg = callbacks->select_cfg(tuner, 0);
+    const auto *cfg = j2025_select_cfg(tuner, 0);
     int nt = cfg->thread_number;
     check_cfg(cfg, maximum, close && !tie);
     if (measured[nt / 2 - 1]) {
@@ -52,23 +50,20 @@ static void check_search(int maximum, int optimum, bool close, bool tie = false)
       measured[nt / 2 - 1] = true;
       ++probes;
     }
-    callbacks->observe(tuner, 0, stable ? 0 : cost(nt, optimum));
-    callbacks->step_finish(tuner, call);
+    j2025_observe(tuner, 0, stable ? 0 : cost(nt, optimum));
   }
   assert(stable);
   if (maximum >= 32) assert(probes < maximum / 2 - 1);
   j2025_destroy(tuner);
 }
 
-/* 仅测试：交错执行两个 region，step 通知不能重置各自的搜索状态。 */
+/* 仅测试：交错执行两个 region，各自保留独立的搜索状态。 */
 static void check_regions() {
   j2025 *tuner = j2025_create(2, 8);
-  const auto *callbacks = j2025_callbacks();
   for (int step = 0; step < 32; ++step) {
-    callbacks->step_start(tuner, step);
     for (int id = 0; id < 2; ++id) {
       int optimum = id == 0 ? 2 : 6;
-      const auto *cfg = callbacks->select_cfg(tuner, id);
+      const auto *cfg = j2025_select_cfg(tuner, id);
       if (step < 3) assert(cfg->thread_number == 8);
       if (step >= 16) {
         assert(cfg->thread_number == optimum);
@@ -76,9 +71,8 @@ static void check_regions() {
       }
       double seconds = cost(cfg->thread_number, optimum);
       if ((step == 1 && id == 0) || (step == 2 && id == 1)) seconds += 10;
-      callbacks->observe(tuner, id, step == 0 ? 0 : seconds);
+      j2025_observe(tuner, id, step == 0 ? 0 : seconds);
     }
-    callbacks->step_finish(tuner, step);
   }
   j2025_destroy(tuner);
 }

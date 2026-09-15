@@ -2,7 +2,7 @@
 #define _GNU_SOURCE
 #endif
 
-#include "hams_binding.h"
+#include "../hams/hams_binding.h"
 #include <assert.h>
 #include <omp.h>
 #include <sched.h>

@@ -43,6 +43,7 @@ void initialize()
   int i, j, k, m, ix, iy, iz;
   double xi, eta, zeta, Pface[2][3][5], Pxi, Peta, Pzeta, temp[5];
 
+  PARALLEL_START(&sp_control, SP_P_INITIALIZE);
   #pragma omp parallel default(shared) \
           private(i,j,k,m,zeta,eta,xi,ix,iy,iz,Pxi,Peta,Pzeta,Pface,temp)
   {
@@ -52,6 +53,7 @@ void initialize()
   //  to compute the whole thing with a simple loop. Make sure those 
   //  values are nonzero by initializing the whole thing here. 
   //---------------------------------------------------------------------
+  FOR_START(&sp_control, SP_F_INITIALIZE_1);
   #pragma omp for schedule(static)
   for (k = 0; k <= grid_points[2]-1; k++) {
     for (j = 0; j <= grid_points[1]-1; j++) {
@@ -64,10 +66,12 @@ void initialize()
       }
     }
   }
+  FOR_END(&sp_control, SP_F_INITIALIZE_1);
 
   //---------------------------------------------------------------------
   // first store the "interpolated" values everywhere on the grid    
   //---------------------------------------------------------------------
+  FOR_START(&sp_control, SP_F_INITIALIZE_2);
   #pragma omp for schedule(static) nowait
   for (k = 0; k <= grid_points[2]-1; k++) {
     zeta = (double)k * dnzm1;
@@ -165,6 +169,8 @@ void initialize()
   //---------------------------------------------------------------------
   eta = 1.0;
   j   = grid_points[1]-1;
+  FOR_END(&sp_control, SP_F_INITIALIZE_2);
+  FOR_START(&sp_control, SP_F_INITIALIZE_3);
   #pragma omp for schedule(static)
   for (k = 0; k <= grid_points[2]-1; k++) {
     zeta = (double)k * dnzm1;
@@ -176,12 +182,14 @@ void initialize()
       }
     }
   }
+  FOR_END(&sp_control, SP_F_INITIALIZE_3);
 
   //---------------------------------------------------------------------
   // bottom face                                       
   //---------------------------------------------------------------------
   zeta = 0.0;
   k    = 0;
+  FOR_START(&sp_control, SP_F_INITIALIZE_4);
   #pragma omp for schedule(static) nowait
   for (j = 0; j <= grid_points[1]-1; j++) {
     eta = (double)j * dnym1;
@@ -210,7 +218,9 @@ void initialize()
       }
     }
   }
+  FOR_END(&sp_control, SP_F_INITIALIZE_4);
   } //end parallel
+  PARALLEL_END(&sp_control, SP_P_INITIALIZE);
 }
 
 

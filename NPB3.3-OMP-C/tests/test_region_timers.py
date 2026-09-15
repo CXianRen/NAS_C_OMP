@@ -23,6 +23,7 @@ with tempfile.TemporaryDirectory(prefix="npb-time-test-") as directory:
         "-O2", "-std=c11", "-fopenmp", "-Wall", "-Wextra", "-Wpedantic",
         "-Werror", "-I", str(root / "common"), str(source),
         str(root / "common/region_timers.c"),
+        str(root.parent / "framework/timer/region_timer.c"),
         "-Wl,--wrap=omp_get_wtime",
         "-o", str(binary),
     ], check=True)

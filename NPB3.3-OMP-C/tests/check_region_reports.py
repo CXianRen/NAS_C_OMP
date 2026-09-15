@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import re
 
-from report_region_times import parse_log, TOTAL_NAMES
+from report_region_times import parse_log
 
 ROOT = Path(__file__).resolve().parents[1]
 MANUAL = re.compile(r"\bNPB_(?:PARALLEL_FOR|PARALLEL|FOR)_(?:BEGIN|END)\s*\(|\bnpb_time_(?:start|stop)\s*\(")
@@ -14,7 +14,7 @@ MANUAL = re.compile(r"\bNPB_(?:PARALLEL_FOR|PARALLEL|FOR)_(?:BEGIN|END)\s*\(|\bn
 
 def check_sources():
     count = 0
-    for bench in TOTAL_NAMES:
+    for bench in ("SP",):
         directory = ROOT / bench / "src"
         assert not list(directory.glob("region_info.*")), directory
         for source in directory.iterdir():
@@ -98,7 +98,7 @@ def main():
     args = parser.parse_args()
     print(f"PASS: {check_sources()} source files have no manual region instrumentation")
     if args.directory:
-        logs = [args.directory / (bench + ".log") for bench in TOTAL_NAMES
+        logs = [args.directory / (bench + ".log") for bench in ("SP",)
                 if (args.directory / (bench + ".log")).exists()]
         if not logs:
             parser.error("no benchmark logs found")

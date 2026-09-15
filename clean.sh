@@ -5,7 +5,11 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 components=(
   NPB3.3-OMP-C
-  LULESH
+  example
+  framework/hams
+  framework/j2025
+  framework/region_control
+  framework/timer
 )
 
 for component in "${components[@]}"; do

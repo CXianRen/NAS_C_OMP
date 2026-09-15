@@ -44,6 +44,7 @@
 
 #include "header.h"
 #include "print_results.h"
+#include "region_control_adapter.h"
 
 /* common /global/ */
 int grid_points[3], nx2, ny2, nz2;
@@ -170,11 +171,13 @@ int main(int argc, char *argv[])
   npb_time_begin();
 
   for (step = 1; step <= niter; step++) {
+    npb_control_step_start(step);
     if ((step % 20) == 0 || step == 1) {
       printf(" Time step %4d\n", step);
     }
 
     adi();
+    npb_control_step_finish(step);
   }
 
   npb_time_end();

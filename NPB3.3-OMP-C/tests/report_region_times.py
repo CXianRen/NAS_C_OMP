@@ -8,6 +8,7 @@ import re
 
 
 TOTAL_NAMES = {
+    # Preserve saved historical reports; the current benchmark is SP.
     "BT": "total", "SP": "total", "LU": "total", "CG": "benchmk",
     "MG": "benchmk", "FT": "total", "EP": "Total time",
     "IS": "Benchmarking", "UA": "total", "DC": "Benchmark Time",
@@ -151,12 +152,9 @@ def write_reports(directory, results):
             or "NPB_NITER=" in str(values.get("iterations", ""))):
         lines += [
             "本次缩短迭代的条目（见上方 iterations）不再对应标准迭代次数的参考结果。"
-            "其 UNSUCCESSFUL 或 Class U 按原日志照录，不据此判定数值回归；"
-            "EP / IS 保留完整 Class B 工作量，仍按标准参考结果验证。",
+            "其 UNSUCCESSFUL 或 Class U 按原日志照录，不据此判定数值回归。",
             "",
         ]
-        if not any(result["benchmark"] == "DC" for result in results):
-            lines += ["DC 不含本次所需的 iteration / omp for 层级，本次不运行。", ""]
     lines += [
         "| Benchmark | iteration 总时间 (s) | 数值验证 | 最大 parallel（占总时间） | 最大 for（占总时间） |",
         "| --- | ---: | --- | --- | --- |",

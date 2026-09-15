@@ -5,6 +5,5 @@ __pycache__/
 *.py[co]
 /NPB3.3-OMP-C/.build/
 /NPB3.3-OMP-C/bin/
-/LULESH/build/
 
 mem.md

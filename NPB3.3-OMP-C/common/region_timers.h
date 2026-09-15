@@ -2,21 +2,22 @@
 #define NPB_REGION_TIMERS_H
 
 #include <omp.h>
+#include "../../framework/timer/region_timer.h"
 #ifndef NPB_REGION_TIMING
 #define NPB_REGION_TIMING 1
 #endif
 #define NPB_TIME_MASTER _Pragma("omp master")
 
-#define NPB_MAX_REGIONS 256
+#define NPB_MAX_REGIONS REGION_TIMER_MAX_REGIONS
 /* Defined by Python's generated region table. parent=-1: parallel. */
-typedef struct {
-  const char *name;
-  int parent, combined;
-} npb_region_info;
+typedef timer_region_info npb_region_info;
 extern const npb_region_info npb_regions[];
 extern const int npb_region_count;
 extern int npb_time_active;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 int npb_time_enabled(void);
 void npb_time_begin(void);
 void npb_time_end(void);
@@ -27,6 +28,12 @@ void npb_time_sync(void);
 double npb_time_read(int id);
 double npb_time_total(void);
 void npb_time_report(void);
+/* One sample for a controlled parallel region, also accumulated when reporting. */
+double npb_time_sample_begin(int id);
+double npb_time_sample_end(int id, double begin);
+#ifdef __cplusplus
+}
+#endif
 
 /* Fixed ID; one pair for a nowait chain, ending before the ordinary for.
  * No semicolons after paired macros. Only master reads the clock.

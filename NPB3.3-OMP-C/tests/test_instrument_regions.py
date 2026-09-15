@@ -20,6 +20,12 @@ tool = root / 'tools/instrument_regions.py'
 
 APP = r'''#include <assert.h>
 #include "region_timers.h"
+/* Use deterministic timestamps so tiny loops always appear in the report. */
+double __wrap_omp_get_wtime(void) {
+  static int ticks;
+  assert(omp_get_thread_num() == 0);
+  return ++ticks;
+}
 void helper(int *, int);
 /* 中文注释：Clang 的字节偏移必须正确转换。 */
 static void run(int *a, int n) {
@@ -112,7 +118,8 @@ with tempfile.TemporaryDirectory(prefix='npb-instrument-test-') as directory:
     subprocess.run(shlex.split(args.cc) + [
         '-O2', '-fopenmp', '-Wall', '-Wextra', '-Werror', '-I', str(root / 'common'),
         str(output / 'app.c'), str(output / 'helper.c'), str(output / 'npb_generated_regions.c'),
-        str(root / 'common/region_timers.c'), '-o', str(binary),
+        str(root / 'common/region_timers.c'), str(root.parent / 'framework/timer/region_timer.c'),
+        '-Wl,--wrap=omp_get_wtime', '-o', str(binary),
     ], check=True)
     env = dict(os.environ, OMP_NUM_THREADS='3', OMP_DYNAMIC='false', NPB_TIME_REPORT='1')
     out = subprocess.check_output([str(binary)], env=env, text=True, timeout=30)

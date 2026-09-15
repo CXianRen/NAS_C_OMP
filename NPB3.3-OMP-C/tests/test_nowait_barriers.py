@@ -129,6 +129,7 @@ with tempfile.TemporaryDirectory(prefix='npb-nowait-barrier-test-') as directory
         '-D_POSIX_C_SOURCE=200809L',
         '-I', str(ROOT / 'common'), str(output / source.name),
         str(output / 'npb_generated_regions.c'), str(ROOT / 'common/region_timers.c'),
+        str(ROOT.parent / 'framework/timer/region_timer.c'),
         '-Wl,--wrap=omp_get_wtime', '-o', str(binary),
     ], check=True)
     env = dict(os.environ, OMP_THREAD_LIMIT='2', NPB_TIME_REPORT='1')

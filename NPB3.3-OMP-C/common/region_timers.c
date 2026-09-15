@@ -1,131 +1,95 @@
 #include "region_timers.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-static double iteration_start, iteration_elapsed;
-static int iteration_running;
+static region_timer timer;
+static int initialized;
 #if NPB_REGION_TIMING
-static double start[NPB_MAX_REGIONS], elapsed[NPB_MAX_REGIONS];
-static int enabled = -1;
-/* Accessed only by the primary thread. Nested parallel timing is unsupported. */
-static int pending_nowait = -1;
 int npb_time_active;
+#endif
 
+/* Keep NPB's environment and generated table in the application adapter. */
+static void initialize(void)
+{
+  if (initialized) return;
+#if NPB_REGION_TIMING
+  const char *v = getenv("NPB_TIME_REPORT");
+  int enabled = v && (!strcmp(v, "1") || !strcmp(v, "true") ||
+                     !strcmp(v, "yes") || !strcmp(v, "on"));
+  region_timer_init(&timer, npb_regions, npb_region_count, enabled);
+#else
+  region_timer_init(&timer, NULL, 0, 0);
+#endif
+  initialized = 1;
+}
+
+/* Query NPB report activation without reading a clock. */
+#if NPB_REGION_TIMING
 int npb_time_enabled(void)
 {
-  if (enabled < 0) {
-    const char *v = getenv("NPB_TIME_REPORT");
-    enabled = v && (!strcmp(v, "1") || !strcmp(v, "true") ||
-                    !strcmp(v, "yes") || !strcmp(v, "on"));
-  }
-  return enabled;
+  initialize();
+  return timer.enabled;
 }
 #endif
 
+/* Preserve the application's original formal-iteration timing window. */
 void npb_time_begin(void)
 {
-  iteration_running = 1;
-  iteration_start = omp_get_wtime();
+  initialize();
+  region_timer_begin(&timer);
 #if NPB_REGION_TIMING
-  npb_time_active = npb_time_enabled();
+  npb_time_active = timer.active;
 #endif
 }
 
+/* Close the existing total window and disable subsequent report accumulation. */
 void npb_time_end(void)
 {
-  if (!iteration_running) return;
-  iteration_elapsed += omp_get_wtime() - iteration_start;
+  region_timer_end(&timer);
 #if NPB_REGION_TIMING
   npb_time_active = 0;
 #endif
-  iteration_running = 0;
 }
 
 #if NPB_REGION_TIMING
-static void finish_nowait(double end)
+/* Forward an ordinary region's start to the shared timer. */
+void npb_time_start(int id) { region_timer_start(&timer, id); }
+
+/* Forward an ordinary region's end, including its trailing nowait child. */
+void npb_time_stop(int id) { region_timer_stop(&timer, id); }
+
+/* Take a tuning sample even when report output is disabled. */
+double npb_time_sample_begin(int id)
 {
-  if (pending_nowait < 0) return;
-  elapsed[pending_nowait] += end - start[pending_nowait];
-  pending_nowait = -1;
+  return region_timer_sample_begin(&timer, id);
 }
 
-void npb_time_start(int id)
+/* Return one invocation's elapsed time, using the same report timestamps. */
+double npb_time_sample_end(int id, double begin)
 {
-  if (npb_time_active) {
-    double begin = omp_get_wtime();
-    /* A new for starts a new interval, including when called from a helper. */
-    finish_nowait(begin);
-    start[id] = begin;
-  }
+  return region_timer_sample_end(&timer, id, begin);
 }
 
-void npb_time_stop(int id)
-{
-  if (npb_time_active) {
-    double end = omp_get_wtime();
-    elapsed[id] += end - start[id];
-    if (pending_nowait == id) pending_nowait = -1;
-    /* The parallel stop runs after its existing implicit barrier/join.
-     * Reuse this timestamp for its last nowait child and its own total.
-     */
-    if (pending_nowait >= 0 && npb_regions[pending_nowait].parent == id)
-      finish_nowait(end);
-  }
-}
+/* Keep a nowait chain pending until its existing synchronization boundary. */
+void npb_time_nowait_start(int id) { region_timer_nowait_start(&timer, id); }
 
-void npb_time_nowait_start(int id)
-{
-  if (npb_time_active) {
-    npb_time_start(id);
-    pending_nowait = id;
-  }
-}
+/* Close a pending nowait chain at an explicit barrier. */
+void npb_time_sync(void) { region_timer_sync(&timer); }
 
-void npb_time_sync(void)
-{
-  if (npb_time_active && pending_nowait >= 0)
-    finish_nowait(omp_get_wtime());
-}
-
+/* Read a region's accumulated time without taking a new sample. */
 double npb_time_read(int id)
 {
-  return elapsed[id];
+  initialize();
+  return region_timer_read(&timer, id);
 }
 #endif
 
-double npb_time_total(void)
-{
-  return iteration_elapsed;
-}
+/* Read the original benchmark total, including all formal timing windows. */
+double npb_time_total(void) { return region_timer_total(&timer); }
 
-#if NPB_REGION_TIMING
-static double step_percent(double seconds)
-{
-  return iteration_elapsed > 0 ? 100.0 * seconds / iteration_elapsed : 0.0;
-}
-
+/* Preserve the existing NPB report format through the shared timer. */
 void npb_time_report(void)
 {
-  int p, f;
-  if (!npb_time_enabled()) return;
-  puts("\ntime report\nunit: seconds");
-  printf("iteration total: %.9f s\n", iteration_elapsed);
-  puts("step %: accumulated region time / iteration total (average time-step basis)");
-  for (p = 0; p < npb_region_count; ++p) {
-    const npb_region_info *r = &npb_regions[p];
-    if (r->parent != -1 || elapsed[p] == 0) continue;
-    printf("parallel region %s  %.9f s  step: %.3f%%\n",
-           r->name, elapsed[p], step_percent(elapsed[p]));
-    if (r->combined)
-      printf("    for region %s  %.9f s  step: %.3f%%\n",
-             r->name, elapsed[p], step_percent(elapsed[p]));
-    for (f = 0; f < npb_region_count; ++f)
-      if (npb_regions[f].parent == p && elapsed[f] != 0)
-        printf("    for region %s  %.9f s  step: %.3f%%\n",
-               npb_regions[f].name, elapsed[f], step_percent(elapsed[f]));
-  }
+  initialize();
+  region_timer_report(&timer);
 }
-#else
-void npb_time_report(void) {}
-#endif

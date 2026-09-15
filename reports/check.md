@@ -42,6 +42,11 @@ LU.C    0.475   57, contigious (0.470)
 FT.C    1.65    64, contigious (1.257)
 MG.C    0.98    64, congigious (0.776)
 
+@intel j2025
+SP.C   0.93     0.86825(disable) (original 0.8705)
+SP.D   22.6     18.42 (disable)  (original 18.23)
+
+
 
 @amd  otter
 CG.C  0.306     64

@@ -1,7 +1,7 @@
 #ifndef J2025_RUNTIME_H
 #define J2025_RUNTIME_H
 
-/* 编译期控制自动调优；关闭后 attach/detach 为空操作，计时桩仍可用。 */
+/* 旧显式 J2025 API 的兼容开关；新应用使用 tuner.h 和运行时 TUNER。 */
 #ifndef J2025_ENABLE
 #define J2025_ENABLE 1
 #endif
@@ -14,7 +14,7 @@ typedef struct region_control region_control;
 typedef struct j2025_runtime j2025_runtime;
 
 #if J2025_ENABLE
-/* 创建 J2025 状态和共享 binding，并直接向已初始化的桩注册回调。 */
+/* 通过通用 tuner 层显式挂载 J2025；此兼容 API 不读取 TUNER。 */
 j2025_runtime *j2025_attach(region_control *control);
 /* 注销回调并释放 J2025/binding；桩由调用方持有，线程配置继续保留。 */
 void j2025_detach(j2025_runtime *runtime);

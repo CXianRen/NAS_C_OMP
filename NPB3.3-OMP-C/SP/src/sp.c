@@ -45,7 +45,7 @@
 #include "header.h"
 #include "print_results.h"
 #include <string.h>
-#include "../../../framework/j2025/j2025_runtime.h"
+#include "../../../framework/tuner/tuner.h"
 
 /* common /global/ */
 int grid_points[3], nx2, ny2, nz2;
@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
                           !strcmp(report, "yes") || !strcmp(report, "on"));
   region_control_init(&sp_control, sp_regions, SP_REGION_COUNT,
                       REGION_INSTRUMENT && enabled);
-  j2025_runtime *tuner = j2025_attach(&sp_control);
+  tuner *runtime = tuner_attach(&sp_control);
 
 
   exact_rhs();
@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
                 CS6, "(none)");
 
   region_report(&sp_control);
-  j2025_detach(tuner);
+  tuner_detach(runtime);
 
   return 0;
 }

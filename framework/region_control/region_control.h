@@ -17,6 +17,8 @@ typedef struct {
   void (*parallel_start)(void *context, int id);
   void (*parallel_end)(void *context, int id, double seconds);
   void (*step_end)(void *context, int step);
+  /* 可选整步采样：在 start callback 后计时，显式/隐式结束时反馈一次。 */
+  void (*step_sample)(void *context, int step, double seconds);
 } region_control_callbacks;
 
 /* 调用方持有状态；一个协调线程使用，不支持 nested parallel。 */
@@ -27,6 +29,8 @@ typedef struct region_control {
   void *context;
   int in_step, parallel_id, sample_active;
   double parallel_begin;
+  int step_id, step_sample_active;
+  double step_begin;
 
   /* 内置计时：running 是总窗口，active 控制 region 累计，enabled 控制报告。 */
   int enabled, active, running, pending_nowait;
@@ -47,11 +51,13 @@ void region_control_register(region_control *control,
                              void *context);
 /* 开始正式总计时窗口。 */
 void iteration_start(region_control *control);
-/* 结束并累计正式总计时窗口。 */
+/* 反馈尚未结束的整步样本，再结束并累计正式总计时窗口。 */
 void iteration_end(region_control *control);
-/* 仅在正式窗口内通知 step 开始，不读取时钟。 */
+/* 正式窗口内通知 step 开始；若注册 step_sample，先反馈上一步，再在
+ * step_start callback 完成后开始计时。没有 step_sample 时不读取时钟。 */
 void step_start(region_control *control, int step);
-/* 可选：仅在正式窗口内通知 step 结束，不读取时钟。 */
+/* 可选：反馈整步样本并通知 step 结束；省略时由下一次 step_start 或
+ * iteration_end 结束样本。没有 step_sample 时不读取时钟。 */
 void step_end(region_control *control, int step);
 /* 返回正式窗口累计时间。 */
 double iteration_time(const region_control *control);

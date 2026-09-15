@@ -1,46 +1,21 @@
 #include "j2025_runtime.h"
 #if J2025_ENABLE
-#include "j2025.h"
-#include "../region_control/region_control.h"
+#include "../tuner/tuner.h"
 
 #include <cassert>
 #include <new>
 
 struct j2025_runtime {
-  region_control *control;
-  hams_binding *binding;
-  j2025 *tuner;
+  tuner *runtime;
 };
 
-/* J2025 在开始 callback 中选择 cfg，直接调用 HAMS 完成绑定。 */
-static void on_parallel_start(void *context, int id)
-{
-  auto *runtime = static_cast<j2025_runtime *>(context);
-  hams_binding_apply(runtime->binding, j2025_select_cfg(runtime->tuner, id));
-}
-
-/* 结束 callback 直接把桩提供的单次耗时交给 J2025。 */
-static void on_parallel_end(void *context, int id, double seconds)
-{
-  auto *runtime = static_cast<j2025_runtime *>(context);
-  j2025_observe(runtime->tuner, id, seconds);
-}
-
-/* J2025 拥有搜索状态和 binding，并直接向 region_control 注册回调。 */
+/* 兼容原有显式 J2025 挂载 API；配置/反馈/绑定统一由 tuner 层处理。 */
 j2025_runtime *j2025_attach(region_control *control)
 {
   assert(control);
   auto *runtime = new (std::nothrow) j2025_runtime;
   assert(runtime);
-  runtime->control = control;
-  runtime->binding = hams_binding_create();
-  hams_binding_status status;
-  hams_binding_get_status(runtime->binding, &status);
-  runtime->tuner = j2025_create(control->region_count, status.max_threads);
-  // 当前搜索由 region 样本推进，不需要额外的 step 回调。
-  static const region_control_callbacks callbacks{
-      nullptr, on_parallel_start, on_parallel_end, nullptr};
-  region_control_register(control, &callbacks, runtime);
+  runtime->runtime = tuner_attach_named(control, "j2025");
   return runtime;
 }
 
@@ -48,9 +23,7 @@ j2025_runtime *j2025_attach(region_control *control)
 void j2025_detach(j2025_runtime *runtime)
 {
   if (!runtime) return;
-  region_control_register(runtime->control, nullptr, nullptr);
-  hams_binding_destroy(runtime->binding);
-  j2025_destroy(runtime->tuner, runtime->control->regions);
+  tuner_detach(runtime->runtime);
   delete runtime;
 }
 #endif

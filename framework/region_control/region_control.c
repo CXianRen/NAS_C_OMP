@@ -25,6 +25,16 @@ void region_control_register(region_control *control,
 {
   control->callbacks = callbacks ? *callbacks : (region_control_callbacks){0};
   control->context = context;
+  control->step_sample_active = 0;
+}
+
+/* 每步只反馈一次。先清标记，使显式结束、下一步和窗口结束不会重复消费。 */
+static void finish_step_sample(region_control *control)
+{
+  if (!control->step_sample_active) return;
+  double seconds = omp_get_wtime() - control->step_begin;
+  control->step_sample_active = 0;
+  control->callbacks.step_sample(control->context, control->step_id, seconds);
 }
 
 /* 开始总计时窗口，region 历史累计值保留。 */
@@ -35,30 +45,40 @@ void iteration_start(region_control *control)
   control->active = control->enabled;
 }
 
-/* 结束总窗口并退出 step，不补发可选的 step_end callback。 */
+/* 最后一个 step 的样本在窗口结束时反馈，不补发旧的 step_end 通知。 */
 void iteration_end(region_control *control)
 {
   assert(control->parallel_id == -1);
   if (!control->running) return;
+  finish_step_sample(control);
   control->total_elapsed += omp_get_wtime() - control->total_start;
   control->active = control->running = 0;
   control->in_step = 0;
 }
 
-/* 正式窗口内仅通知新 step，不读取时间。 */
+/* 配置调整发生于 start callback；整步计时从 callback 完成后开始。 */
 void step_start(region_control *control, int step)
 {
   if (!control->running) return;
+  assert(control->parallel_id == -1);
+  finish_step_sample(control);
   control->in_step = 1;
+  control->step_id = step;
   if (control->callbacks.step_start)
     control->callbacks.step_start(control->context, step);
+  if (control->callbacks.step_sample) {
+    control->step_begin = omp_get_wtime();
+    control->step_sample_active = 1;
+  }
 }
 
-/* 正式窗口内仅通知 step 结束，不读取时间。 */
+/* 显式结束同一步；未注册整步采样时仍只发送通知，不读取时间。 */
 void step_end(region_control *control, int step)
 {
   if (!control->running) return;
-  assert(control->in_step);
+  assert(control->in_step && control->parallel_id == -1);
+  assert(!control->step_sample_active || control->step_id == step);
+  finish_step_sample(control);
   if (control->callbacks.step_end)
     control->callbacks.step_end(control->context, step);
   control->in_step = 0;

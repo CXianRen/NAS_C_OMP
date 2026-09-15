@@ -99,7 +99,7 @@ static void check(int report)
     {NULL, 1, 0, NULL, 0, 1}, {NULL, 1, 0, NULL, 0, 0}, {NULL, 1, 0, NULL, 0, 1}
   };
   const region_control_callbacks callbacks = {
-    on_step_start, on_parallel_start, on_parallel_end, on_step_end
+    on_step_start, on_parallel_start, on_parallel_end, on_step_end, NULL
   };
   region_control control;
   reads = event_count = 0;
@@ -175,11 +175,109 @@ static void check_contexts(void)
   assert(reads == previous_reads);
 }
 
+typedef struct {
+  int count;
+  int step[4];
+  double seconds[4];
+} step_samples;
+
+/* Whole-step selection overhead belongs before the step timestamp. */
+static void sample_step_start(void *context, int step)
+{
+  (void)context;
+  events[event_count++] = 100 + step;
+  omp_get_wtime();
+}
+
+/* Store one complete step, then simulate policy observation overhead. */
+static void sample_step(void *context, int step, double seconds)
+{
+  step_samples *samples = context;
+  assert(samples->count < 4);
+  samples->step[samples->count] = step;
+  samples->seconds[samples->count++] = seconds;
+  events[event_count++] = 300 + step;
+  omp_get_wtime();
+}
+
+static void check_event_suffix(int start, const int *expected, int count)
+{
+  assert(event_count == start + count);
+  for (int i = 0; i < count; ++i) assert(events[start + i] == expected[i]);
+}
+
+/* Explicit/implicit endings observe once; unregister cancels an unfinished sample. */
+static void check_step_samples(int report)
+{
+  region_info regions[] = {{NULL, -1, 1, NULL, 0, 0}};
+  region_control control;
+  step_samples samples = {0};
+  const region_control_callbacks callbacks = {
+    sample_step_start, NULL, NULL, on_step_end, sample_step
+  };
+  reads = event_count = 0;
+  region_control_init(&control, regions, 1, report);
+  region_control_register(&control, &callbacks, &samples);
+  step_start(&control, 6);
+  step_end(&control, 6);
+  assert(reads == 0 && event_count == 0 && samples.count == 0);
+  iteration_start(&control);
+  step_start(&control, 7);
+  const int start[] = {1, 107, 1, 1};
+  check_event_suffix(0, start, 4);
+  combined(&control);
+  omp_get_wtime();  /* Serial work outside any region is part of the step. */
+  int begin = event_count;
+  step_end(&control, 7);
+  const int explicit_end[] = {1, 307, 1, 207};
+  check_event_suffix(begin, explicit_end, 4);
+  int measured = REGION_INSTRUMENT && report;
+  assert(samples.count == 1 && samples.step[0] == 7);
+  assert(samples.seconds[0] == 2.0 + 2.0 * measured);
+  assert(!control.step_sample_active);
+
+  begin = event_count;
+  step_start(&control, 8);
+  const int next_start[] = {108, 1, 1};
+  check_event_suffix(begin, next_start, 3);  /* No duplicate sample for step 7. */
+  combined(&control);
+  combined(&control);
+  omp_get_wtime();
+  begin = event_count;
+  step_start(&control, 9);
+  const int implicit_end[] = {1, 308, 1, 109, 1, 1};
+  check_event_suffix(begin, implicit_end, 6);
+  assert(samples.count == 2 && samples.step[1] == 8);
+  assert(samples.seconds[1] == 2.0 + 4.0 * measured);
+  omp_get_wtime();
+  omp_get_wtime();
+  begin = event_count;
+  iteration_end(&control);
+  const int final_end[] = {1, 309, 1, 1};
+  check_event_suffix(begin, final_end, 4);
+  assert(samples.count == 3 && samples.step[2] == 9 && samples.seconds[2] == 3.0);
+  assert(!control.step_sample_active && !control.in_step);
+  int previous_reads = reads;
+  iteration_end(&control);
+  assert(reads == previous_reads && samples.count == 3);
+
+  iteration_start(&control);
+  step_start(&control, 10);
+  assert(control.step_sample_active && samples.count == 3);
+  previous_reads = reads;
+  region_control_register(&control, NULL, NULL);
+  assert(!control.step_sample_active && reads == previous_reads);
+  iteration_end(&control);
+  assert(samples.count == 3 && reads == previous_reads + 1);
+}
+
 /* Run the same manually instrumented code with reports enabled and disabled. */
 int main(void)
 {
   check(1);
   check(0);
   check_contexts();
-  puts("region_control=PASS (hooks, callbacks, samples, master, nowait, names, contexts, total-only)");
+  check_step_samples(0);
+  check_step_samples(1);
+  puts("region_control=PASS (hooks, callbacks, region/step samples, master, nowait, names, contexts, total-only)");
 }

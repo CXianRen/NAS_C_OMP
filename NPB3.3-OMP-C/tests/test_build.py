@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check direct SP compilation, reuse, source changes and manual-hook switches."""
+"""Check direct SP builds, runtime tuner selection and manual-hook switches."""
 import argparse
 import os
 from pathlib import Path
@@ -37,7 +37,7 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
 ''' + anchor))
 
     binary = directory / 'bin/SP.S'
-    command = ['make', '-f', str(root / 'Makefile'), 'CLASS=S', 'TUNER=none',
+    command = ['make', '-f', str(root / 'Makefile'), 'CLASS=S',
                '-j2', f'CC={args.cc}', f'NPB_DIR={source}',
                f'BUILD_DIR={directory}/build', f'BIN_DIR={directory}/bin',
                'PYTHON=/missing-python', 'CLANG=/missing-clang']
@@ -46,28 +46,60 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
     for name in ('OMP_PLACES', 'KMP_AFFINITY', 'GOMP_CPU_AFFINITY'):
         env.pop(name, None)
     env.pop('NPB_NITER', None)
+    for name in tuple(env):
+        if name.startswith('OTTER_') or name in ('TUNER', 'J2025_ENABLE'):
+            env.pop(name)
 
     # Building must compile original SP files directly, without invoking generators.
-    def make(flags='', instrument=1, j2025=0):
-        process = subprocess.run(command + [f'CPPFLAGS={flags}', f'INSTRUMENT={instrument}',
-                                            f'J2025_ENABLE={j2025}'],
-                                 cwd=root, capture_output=True, text=True)
+    def make(flags='', instrument=1, selection=None):
+        build_env = dict(env)
+        if selection is not None:
+            build_env['TUNER'] = selection
+        process = subprocess.run(command + [f'CPPFLAGS={flags}', f'INSTRUMENT={instrument}'],
+                                 cwd=root, env=build_env,
+                                 capture_output=True, text=True)
         assert process.returncode == 0, process.stdout + process.stderr
         assert not re.search(r'ast-dump|instrument_regions\.py|instrumented/', process.stdout)
         assert not list(directory.rglob('instrumentation.json'))
 
     # Every configuration must retain the standard SP.S numerical result.
-    def run_sp(flag):
-        process = subprocess.run([str(binary)], cwd=directory, env=env,
+    def run_sp(flag, selection=None, report=True, verbose=None):
+        run_env = dict(env, NPB_TIME_REPORT='1' if report else '0')
+        if selection is not None:
+            run_env['TUNER'] = selection
+        if verbose is not None:
+            run_env['OTTER_VERBOSE'] = str(verbose)
+        process = subprocess.run([str(binary)], cwd=directory, env=run_env,
                                  capture_output=True, text=True, timeout=60)
         assert process.returncode == 0, process.stdout + process.stderr
         assert re.search(r'Verification\s*=\s*SUCCESSFUL', process.stdout), process.stdout
         assert f'build-flag={flag}' in process.stdout, process.stdout
+        mode = (selection or 'none').lower()
+        assert ('J2025 final region=' in process.stdout) == (mode == 'j2025'), process.stdout
+        otter_final = re.findall(r'^Otter final threads=\d+ placement=\S+ state=\S+',
+                                 process.stdout, re.MULTILINE)
+        assert len(otter_final) == int(mode == 'otter'), process.stdout
+        assert process.stdout.count('Otter final ') == int(mode == 'otter'), process.stdout
+        assert 'Otter final region=' not in process.stdout, process.stdout
+        trace = mode == 'otter' and verbose != 0
+        assert ('Otter search ' in process.stdout) == trace, process.stdout
+        assert ('Otter step=' in process.stdout) == trace, process.stdout
+        if trace:
+            assert re.search(r'^Otter search .*unit: us$', process.stdout, re.MULTILINE), process.stdout
+            assert 'Otter step=1 select state=' in process.stdout, process.stdout
+            assert 'Otter step=1 sample state=' in process.stdout, process.stdout
         if 'time report' in process.stdout:
             log = directory / 'SP.log'
             log.write_text(process.stdout)
             check_report(log, check_sources(source / 'SP/src'))
         return process.stdout
+
+    def reject_tuner(selection, message):
+        process = subprocess.run([str(binary)], cwd=directory,
+                                 env=dict(env, TUNER=selection),
+                                 capture_output=True, text=True, timeout=60)
+        output = process.stdout + process.stderr
+        assert process.returncode != 0 and message in output, output
 
     # Inspect calls in a real SP object: the shared runtime may retain unused APIs.
     def check_hook_calls(instrument):
@@ -110,6 +142,8 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
     before = binary.stat().st_mtime_ns
     make(flags, instrument=0)
     assert before != binary.stat().st_mtime_ns and 'time report' not in run_sp(1)
+    for selection in ('j2025', 'otter'):
+        reject_tuner(selection, 'INSTRUMENT')
     check_hook_calls(0)
     before = binary.stat().st_mtime_ns
     make(flags, instrument=0)
@@ -119,17 +153,21 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
     check_hook_calls(1)
     print('PASS: instrumentation switches rebuild; disabled SP code has no hook calls', flush=True)
 
-    # Switching the tuner must relink without disabling the independent timing hooks.
-    for enabled in (1, 0, 1):
-        before = binary.stat().st_mtime_ns
-        make(flags, j2025=enabled)
-        assert before != binary.stat().st_mtime_ns
-        output = run_sp(1)
-        assert 'time report' in output and ('J2025 final region=' in output) == bool(enabled)
-        symbols = subprocess.check_output(['nm', '-C', str(binary)], text=True)
-        assert ('j2025_attach' in symbols) == bool(enabled)
-        assert ('hams_binding_apply' in symbols) == bool(enabled)
-        before = binary.stat().st_mtime_ns
-        make(flags, j2025=enabled)
-        assert before == binary.stat().st_mtime_ns, 'unchanged tuner build compiled again'
-    print('PASS: J2025_ENABLE switches rebuild; disabled tuner retains timing without J2025/HAMS', flush=True)
+    # One binary contains both policies; the runtime environment does not rebuild it.
+    before = binary.stat().st_mtime_ns
+    for selection in (None, '', 'none', 'j2025', 'otter', 'J2025', 'OtTeR'):
+        make(flags, selection=selection)
+        assert before == binary.stat().st_mtime_ns, 'TUNER selection rebuilt the executable'
+        assert 'time report' in run_sp(1, selection)
+    symbols = subprocess.check_output(['nm', '-C', str(binary)], text=True)
+    for symbol in ('tuner_attach', 'hams_binding_apply', 'j2025_select_cfg', 'otter_select_cfg'):
+        assert symbol in symbols, symbol
+    reject_tuner('ottre', 'TUNER')
+    print('PASS: one SP.S binary supports default/none/J2025/Otter; invalid TUNER is rejected', flush=True)
+
+    for selection in ('none', 'j2025', 'otter'):
+        assert 'time report' not in run_sp(1, selection, report=False,
+                                          verbose=1 if selection == 'otter' else None)
+    assert 'time report' in run_sp(1, 'otter', verbose=0)
+    assert before == binary.stat().st_mtime_ns
+    print('PASS: Otter search logs and time reports switch independently; SP verifies', flush=True)

@@ -1,4 +1,4 @@
-#include "../framework/j2025/j2025_runtime.h"
+#include "../framework/tuner/tuner.h"
 #include "../framework/region_control/region_control.h"
 
 #include <cassert>
@@ -12,15 +12,15 @@ static void trace(int step, int region) {
     std::printf("step=%d region=%d threads=%d\n", step, region, omp_get_max_threads());
 }
 
-/* 两个 region 每步各执行一次；control 内置计时，J2025 可在编译时关闭。 */
+/* 两个 region 每步各执行一次；control 内置计时，环境变量选择 tuner。 */
 int main() {
   constexpr int count = 32768;
   std::vector<double> a(count, 1), b(count);
   static region_info regions[] = {{nullptr, -1, 1, nullptr, 0, 0},
                                         {nullptr, -1, 1, nullptr, 0, 0}};
   region_control control;
-  region_control_init(&control, regions, 2, 1);
-  j2025_runtime *runtime = j2025_attach(&control);
+  region_control_init(&control, regions, 2, REGION_INSTRUMENT);
+  tuner *runtime = tuner_attach(&control);
 
   iteration_start(&control);
   for (int step = 1; step <= 32; ++step) {
@@ -49,5 +49,5 @@ int main() {
   }
   region_report(&control);
   std::puts("example=PASS steps=32 regions=2");
-  j2025_detach(runtime);
+  tuner_detach(runtime);
 }

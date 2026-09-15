@@ -142,7 +142,7 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
     before = binary.stat().st_mtime_ns
     make(flags, instrument=0)
     assert before != binary.stat().st_mtime_ns and 'time report' not in run_sp(1)
-    for selection in ('j2025', 'otter'):
+    for selection in ('dummy', 'j2025', 'otter'):
         reject_tuner(selection, 'INSTRUMENT')
     check_hook_calls(0)
     before = binary.stat().st_mtime_ns
@@ -153,19 +153,20 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
     check_hook_calls(1)
     print('PASS: instrumentation switches rebuild; disabled SP code has no hook calls', flush=True)
 
-    # One binary contains both policies; the runtime environment does not rebuild it.
+    # One binary contains all policies; the runtime environment does not rebuild it.
     before = binary.stat().st_mtime_ns
-    for selection in (None, '', 'none', 'j2025', 'otter', 'J2025', 'OtTeR'):
+    for selection in (None, '', 'none', 'dummy', 'j2025', 'otter', 'DuMmY', 'J2025', 'OtTeR'):
         make(flags, selection=selection)
         assert before == binary.stat().st_mtime_ns, 'TUNER selection rebuilt the executable'
         assert 'time report' in run_sp(1, selection)
     symbols = subprocess.check_output(['nm', '-C', str(binary)], text=True)
-    for symbol in ('tuner_attach', 'hams_binding_apply', 'j2025_select_cfg', 'otter_select_cfg'):
+    for symbol in ('tuner_attach', 'hams_binding_apply', 'dummy_select_cfg',
+                   'j2025_select_cfg', 'otter_select_cfg'):
         assert symbol in symbols, symbol
     reject_tuner('ottre', 'TUNER')
-    print('PASS: one SP.S binary supports default/none/J2025/Otter; invalid TUNER is rejected', flush=True)
+    print('PASS: one SP.S binary supports default/none/dummy/J2025/Otter; invalid TUNER is rejected', flush=True)
 
-    for selection in ('none', 'j2025', 'otter'):
+    for selection in ('none', 'dummy', 'j2025', 'otter'):
         assert 'time report' not in run_sp(1, selection, report=False,
                                           verbose=1 if selection == 'otter' else None)
     assert 'time report' in run_sp(1, 'otter', verbose=0)

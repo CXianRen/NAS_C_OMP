@@ -359,6 +359,90 @@ static void check_j2025()
               maximum, maximum / 2, maximum);
 }
 
+/* 记录真实 dummy runtime 的回调，同时继续执行原始选择和反馈流程。 */
+static region_control_callbacks dummy_callbacks;
+static int dummy_selections, dummy_observations, dummy_region;
+static double dummy_seconds;
+
+static void dummy_parallel_start(void *context, int id)
+{
+  assert(id == dummy_region && dummy_selections == dummy_observations);
+  ++dummy_selections;
+  dummy_callbacks.parallel_start(context, id);
+}
+
+static void dummy_parallel_end(void *context, int id, double seconds)
+{
+  assert(id == dummy_region && dummy_selections == dummy_observations + 1);
+  assert(seconds == dummy_seconds);
+  ++dummy_observations;
+  dummy_callbacks.parallel_end(context, id, seconds);
+}
+
+/* dummy 始终使用挂载时的满线程配置，报告开关不关闭选择、绑定和采样。 */
+static void check_dummy(int report)
+{
+  region_info regions[] = {{"A", -1, 0, nullptr, 0, 0},
+                           {"B", -1, 0, nullptr, 0, 0}};
+  region_control control;
+  region_control_init(&control, regions, 2, report);
+  int full = omp_get_max_threads();
+  if (full > omp_get_thread_limit()) full = omp_get_thread_limit();
+  if (full > HAMS_CPU_COUNT) full = HAMS_CPU_COUNT;
+  hams_binding_cfg expected{};
+  expected.thread_number = full;
+  for (int tid = 0; tid < full; ++tid) {
+    expected.mask[tid] = true;
+    expected.tid_to_cpu[tid] = tid;
+  }
+  int rc = setenv("OTTER_MAX_THREADS", "1", 1);  // Otter 限制不能影响 dummy。
+  assert(rc == 0);
+  tuner *runtime = tuner_attach(&control);
+  assert(runtime && std::strcmp(tuner_name(runtime), "dummy") == 0);
+  assert(!mock && !j2025_created && !otter_created && !destroyed);
+  assert(control.context && control.callbacks.parallel_start && control.callbacks.parallel_end);
+  assert(!control.callbacks.step_start && !control.callbacks.step_end);
+  assert(!control.callbacks.step_sample && clock_reads == 0);
+  dummy_callbacks = control.callbacks;
+  control.callbacks.parallel_start = dummy_parallel_start;
+  control.callbacks.parallel_end = dummy_parallel_end;
+
+  const int ids[] = {0, 1, 0, 1};
+  const double work[] = {1.0, 7.0, 0.0, 20.0};
+  iteration_start(&control);
+  for (int i = 0; i < 4; ++i) {
+    if (i % 2 == 0) {
+      int reads = clock_reads;
+      step_start(&control, i / 2);  // 前一步可省略 step_end。
+      assert(clock_reads == reads && dummy_selections == i);
+    }
+    dummy_region = ids[i];
+    dummy_seconds = work[i] + 1.0;
+    PARALLEL_START(&control, ids[i]);
+    assert(dummy_selections == i + 1 && dummy_observations == i);
+    check_binding(expected);
+    clock_now += work[i];
+    PARALLEL_END(&control, ids[i]);
+    assert(dummy_observations == i + 1);
+    check_binding(expected);
+  }
+  int reads = clock_reads;
+  step_end(&control, 1);
+  assert(clock_reads == reads);
+  iteration_end(&control);
+  assert(clock_reads == 10 && dummy_selections == 4 && dummy_observations == 4);
+  assert(control.elapsed[0] == (report ? 3.0 : 0.0));
+  assert(control.elapsed[1] == (report ? 29.0 : 0.0));
+  assert(omp_get_max_threads() == full && omp_get_dynamic() == 0);
+  tuner_detach(runtime);
+  check_unregistered(control);
+  check_binding(expected);
+  assert(!mock && !j2025_created && !otter_created && !destroyed);
+  assert(clock_reads == 10);
+  std::printf("tuner_runtime=dummy report=%d PASS (full=%d, select, binding, sample, detach)\n",
+              report, full);
+}
+
 /* Otter 的同一 step 内，所有 region（包括重复 region）共享当前配置。 */
 static void run_otter_region(region_control *control, int id, int cfg,
                               double work)
@@ -450,10 +534,13 @@ int main(int argc, char **argv)
   const char *mode = argv[1];
   bool default_mode = std::strcmp(mode, "default") == 0;
   bool otter_report = std::strcmp(mode, "otter-report") == 0;
-  int rc = default_mode ? unsetenv("TUNER") : setenv("TUNER", otter_report ? "otter" : mode, 1);
+  bool dummy_report = std::strcmp(mode, "dummy-report") == 0;
+  const char *selection = otter_report ? "otter" : dummy_report ? "DuMmY" : mode;
+  int rc = default_mode ? unsetenv("TUNER") : setenv("TUNER", selection, 1);
   assert(rc == 0);
   if (default_mode || std::strcmp(mode, "none") == 0) check_disabled(mode);
   else if (std::strcmp(mode, "j2025") == 0) check_j2025();
+  else if (std::strcmp(mode, "dummy") == 0 || dummy_report) check_dummy(dummy_report);
   else if (std::strcmp(mode, "otter") == 0 || otter_report) check_otter(otter_report);
   else assert(false);
 }

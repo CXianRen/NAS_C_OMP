@@ -1,4 +1,5 @@
 #include "tuner.h"
+#include "../dummy/dummy.h"
 #include "../hams/hams_binding.h"
 #include "../j2025/j2025.h"
 #include "../otter/otter.h"
@@ -35,6 +36,12 @@ struct tuner {
   void *policy;
   bool pin_threads;
 };
+
+static const tuner_operations dummy_operations{
+    "dummy", tuning_scope::region,
+    [](void *state, int id) { return dummy_select_cfg(static_cast<dummy *>(state), id); },
+    [](void *state, int id, double seconds) { dummy_observe(static_cast<dummy *>(state), id, seconds); },
+    [](void *state, const region_info *) { dummy_destroy(static_cast<dummy *>(state)); }};
 
 static const tuner_operations j2025_operations{
     "j2025", tuning_scope::region,
@@ -159,9 +166,10 @@ tuner *tuner_attach_named(region_control *control, const char *name)
 {
   if (!name || !*name || !strcasecmp(name, "none")) return nullptr;
   const tuner_operations *operations = nullptr;
-  if (!strcasecmp(name, "j2025")) operations = &j2025_operations;
+  if (!strcasecmp(name, "dummy")) operations = &dummy_operations;
+  else if (!strcasecmp(name, "j2025")) operations = &j2025_operations;
   else if (!strcasecmp(name, "otter")) operations = &otter_operations;
-  else fail("TUNER must be none, j2025 or otter");
+  else fail("TUNER must be none, dummy, j2025 or otter");
   if (!REGION_INSTRUMENT) fail("TUNER requires INSTRUMENT=1");
   assert(control && control->region_count > 0);
   assert(!control->context && !control->callbacks.parallel_start &&
@@ -176,7 +184,11 @@ tuner *tuner_attach_named(region_control *control, const char *name)
   hams_binding_status status;
   hams_binding_get_status(runtime->binding, &status);
 
-  if (operations == &j2025_operations) {
+  if (operations == &dummy_operations) {
+    if (!status.supported) fail("Dummy requires OMP_PROC_BIND=false");
+    runtime->pin_threads = true;
+    runtime->policy = dummy_create(status.max_threads);
+  } else if (operations == &j2025_operations) {
     if (!status.supported) fail("J2025 requires OMP_PROC_BIND=false");
     if (status.max_threads < 2 || status.max_threads % 2)
       fail("J2025 requires an even initial thread limit of at least 2");

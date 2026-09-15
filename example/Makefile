@@ -14,9 +14,9 @@ CONFIG = $(BUILD_DIR)/config
 C_OBJECTS = $(BUILD_DIR)/region_control.o
 FRAMEWORK = ../framework
 SOURCES = main.cpp $(FRAMEWORK)/j2025/j2025.cpp $(FRAMEWORK)/otter/otter.cpp \
-	$(FRAMEWORK)/tuner/tuner.cpp $(FRAMEWORK)/hams/hams_binding.cpp
+	$(FRAMEWORK)/dummy/dummy.cpp $(FRAMEWORK)/tuner/tuner.cpp $(FRAMEWORK)/hams/hams_binding.cpp
 HEADERS = $(wildcard $(FRAMEWORK)/j2025/*.h $(FRAMEWORK)/otter/*.h \
-	$(FRAMEWORK)/tuner/*.h $(FRAMEWORK)/hams/*.h $(FRAMEWORK)/region_control/*.h)
+	$(FRAMEWORK)/dummy/*.h $(FRAMEWORK)/tuner/*.h $(FRAMEWORK)/hams/*.h $(FRAMEWORK)/region_control/*.h)
 
 .PHONY: all check run test clean FORCE
 

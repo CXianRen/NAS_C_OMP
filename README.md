@@ -5,6 +5,7 @@
 | `TUNER` | 搜索状态 | 配置生效位置 | 反馈耗时 |
 | --- | --- | --- | --- |
 | `none`（默认） | 无 | 不修改配置 | 仅保留可选计时报告 |
+| `dummy` | 固定初始满线程配置 | `PARALLEL_START` | 单个 region，接收后忽略 |
 | `j2025` | 每个 region 独立 | `PARALLEL_START` | 单个 region |
 | `otter` | 全局一份 | `step_start` | 整个 step，包含串行部分 |
 
@@ -24,15 +25,15 @@ for 每个 step:
 
     for 本 step 实际执行的每个 parallel region R:
         PARALLEL_START(R):
-            if tuner == J2025:
-                apply_config(J2025.select_cfg(R))
+            if tuner in {J2025, Dummy}:
+                apply_config(tuner.select_cfg(R))
             按需开始 region 计时
 
         执行 R 一次                           // 内部 for 仅计时
 
         PARALLEL_END(R):
             按需结束 region 计时
-            if tuner == J2025: J2025.observe(R, region 耗时)
+            if tuner in {J2025, Dummy}: tuner.observe(R, region 耗时)
 
     step_end()  // 可省略；Otter 结束整步计时并反馈，不切换配置
 
@@ -49,6 +50,16 @@ HAMS.apply(cfg):
 ```
 
 tuner 样本排除配置选择、绑定和反馈开销，总窗口包含这些开销；关闭报告仍向 tuner 提供样本。
+
+Dummy 保留上述挂载、选择、绑定、计时和反馈流程：
+
+```text
+attach: 初始配置 = (启动线程上限 N, tid → CPU tid)
+select_cfg(region): return 初始配置
+observe(region, 耗时): return
+```
+
+`N` 取启动时 OpenMP 线程上限（受线程限制和 HAMS 容量限制），不受 Otter 参数影响；每个 region 始终使用这一个配置。
 
 ## 2. J2025：先选绑定，再搜线程数
 
@@ -97,7 +108,7 @@ else:
 搜索结束：后续 step 复用统一配置
 ```
 
-源码：[挂载](framework/tuner/tuner.cpp) · [计时](framework/region_control/region_control.c) · [绑定](framework/hams/hams_binding.cpp) · [J2025](framework/j2025/j2025.cpp) · [Otter](framework/otter/otter.cpp)。
+源码：[挂载](framework/tuner/tuner.cpp) · [计时](framework/region_control/region_control.c) · [绑定](framework/hams/hams_binding.cpp) · [Dummy](framework/dummy/dummy.cpp) · [J2025](framework/j2025/j2025.cpp) · [Otter](framework/otter/otter.cpp)。
 
 分阶段伪代码：[J2025](framework/j2025/J-2025.md) · [Otter](framework/otter/Otter.md)。
 
@@ -116,6 +127,6 @@ make -C framework/ut test
 python3 NPB3.3-OMP-C/tests/test_build.py --cc clang-18
 ```
 
-切换 `TUNER=none|j2025|otter` 无需重编译。`INSTRUMENT=0` 关闭 region hook，此构建仅允许 `TUNER=none`。
+切换 `TUNER=none|dummy|j2025|otter` 无需重编译。Dummy 与 J2025 需要 `OMP_PROC_BIND=false`。`INSTRUMENT=0` 关闭 region hook，此构建仅允许 `TUNER=none`。
 Otter 默认打印搜索过程（step、配置、耗时 `time_us`、预热标记、搜索分支和状态转换），收敛后停止逐步打印；`OTTER_VERBOSE=0` 仅保留最终配置。过程日志不受 `NPB_TIME_REPORT` 控制，打印不计入 tuner 样本。
 独立绑定工具见 [FastCheck](FastCheck/README.md)。

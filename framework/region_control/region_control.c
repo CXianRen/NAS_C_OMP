@@ -18,7 +18,6 @@ void region_control_init(region_control *control, region_info *regions,
   control->regions = regions;
   control->region_count = count;
   control->enabled = report;
-  control->pending_nowait = -1;
   control->parallel_id = -1;
 }
 
@@ -141,57 +140,35 @@ void region_parallel_start(region_control *control, int id,
     control->parallel_begin = omp_get_wtime();
 }
 
-/* 先结束当前 parallel/尾部 nowait 的计时，再调用耗时 callback。 */
+/* 结束当前 parallel 的计时，再调用耗时 callback。 */
 void region_parallel_end(region_control *control, int id)
 {
   assert(control->parallel_id == id);
   if (control->sample_active) {
     double end = omp_get_wtime();
     double seconds = end - control->parallel_begin;
-    if (control->active) {
+    if (control->active)
       control->elapsed[id] += seconds;
-      int pending = control->pending_nowait;
-      /* 尾部 nowait 与外层 parallel 共用 join 后的结束时间，不额外读钟。 */
-      if (pending >= 0 && control->regions[pending].parent == id) {
-        control->elapsed[pending] += end - control->start[pending];
-        control->pending_nowait = -1;
-      }
-    }
     if (control->running && control->in_step && control->callbacks.parallel_end)
       control->callbacks.parallel_end(control->context, id, seconds);
   }
   control->parallel_id = -1;
 }
 
-/* 仅记录 for 的计时；nowait 延后到下一边界结束。 */
+/* 源码中一对 START/END 对应一个完整 for 区间。 */
 void region_for_start(region_control *control, int id,
                       const char *file, const char *name, int line)
 {
   (void)file; (void)name; (void)line;
   assert(id >= 0 && id < control->region_count);
   if (!control->active) return;
-  double begin = omp_get_wtime();
-  int pending = control->pending_nowait;
-  /* 当前 for 开始的同一时间点，结算前一组 nowait。 */
-  if (pending >= 0)
-    control->elapsed[pending] += begin - control->start[pending];
-  control->start[id] = begin;
-  control->pending_nowait = control->regions[id].nowait ? id : -1;
+  control->start[id] = omp_get_wtime();
 }
 
-/* 普通 for 立即结束；nowait 的 END 保留待结束状态。 */
+/* END 显式放在末个普通 for 的 barrier 后，或尾部 nowait 的 parallel 外。 */
 void region_for_end(region_control *control, int id)
 {
-  if (control->active && !control->regions[id].nowait)
+  assert(id >= 0 && id < control->region_count);
+  if (control->active)
     control->elapsed[id] += omp_get_wtime() - control->start[id];
-}
-
-/* 利用应用已有同步边界结束 pending nowait。 */
-void region_sync(region_control *control)
-{
-  int pending = control->pending_nowait;
-  if (control->active && pending >= 0) {
-    control->elapsed[pending] += omp_get_wtime() - control->start[pending];
-    control->pending_nowait = -1;
-  }
 }

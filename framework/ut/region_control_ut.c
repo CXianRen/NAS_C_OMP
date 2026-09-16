@@ -35,7 +35,7 @@ static void on_parallel_start(void *context, int id)
 static void on_parallel_end(void *context, int id, double seconds)
 {
   int report = *(int *)context;
-  assert(id < 2 && seconds == (id == 1 && report ? 5.0 : 1.0));
+  assert(id < 2 && seconds == (id == 1 && report ? 7.0 : 1.0));
   events[event_count++] = 20 + id;
   omp_get_wtime();
 }
@@ -63,7 +63,7 @@ static void combined(region_control *control)
   assert(!strcmp(control->regions[0].file, __FILE__));
 }
 
-/* Preserve nowait endpoints at the next for and at the outer parallel join. */
+/* Source pairs: ordinary A, merged B+C, terminal D ending after the join. */
 static void with_loops(region_control *control)
 {
   (void)control;
@@ -72,20 +72,22 @@ static void with_loops(region_control *control)
   #pragma omp parallel reduction(+:sum)
   {
     FOR_START(control, 2);
-    #pragma omp for nowait
+    #pragma omp for
     for (int i = 0; i < 8; ++i) sum += i;
     FOR_END(control, 2);
     FOR_START(control, 3);
+    #pragma omp for nowait
+    for (int i = 0; i < 8; ++i) sum += i;
     #pragma omp for
     for (int i = 0; i < 8; ++i) sum += i;
     FOR_END(control, 3);
     FOR_START(control, 4);
     #pragma omp for nowait
     for (int i = 0; i < 8; ++i) sum += i;
-    FOR_END(control, 4);
   }
+  FOR_END(control, 4);
   PARALLEL_END(control, 1);
-  assert(sum == 84);
+  assert(sum == 112);
 }
 
 /* Verify reporting and callback timing independently, then unregister the tuner. */
@@ -93,7 +95,7 @@ static void check(int report)
 {
   region_info regions[] = {
     REGION_INFO(0, -1, 1, 0), REGION_INFO(1, -1, 0, 0),
-    REGION_INFO(2, 1, 0, 1), REGION_INFO(3, 1, 0, 0), REGION_INFO(4, 1, 0, 1)
+    REGION_INFO(2, 1, 0, 0), REGION_INFO(3, 1, 0, 1), REGION_INFO(4, 1, 0, 1)
   };
   const region_control_callbacks callbacks = {
     on_step_start, on_parallel_start, on_parallel_end, on_step_end, NULL
@@ -120,18 +122,19 @@ static void check(int report)
   with_loops(&control);
   step_end(&control, 7);
   iteration_end(&control);
-  int expected_reads = REGION_INSTRUMENT ? (report ? 14 : 10) : 2;
+  int expected_reads = REGION_INSTRUMENT ? (report ? 16 : 10) : 2;
   assert(reads == expected_reads && iteration_time(&control) == expected_reads - 1);
   int measured = REGION_INSTRUMENT && report;
   assert(control.elapsed[0] == (measured ? 1.0 : 0.0));
-  assert(control.elapsed[1] == (measured ? 5.0 : 0.0));
-  for (int id = 2; id < 5; ++id)
-    assert(control.elapsed[id] == (measured ? 1.0 : 0.0));
-  const int full[] = {1,107,10,1,1,1,20,1,11,1,1,1,1,1,1,1,21,1,207,1};
+  assert(control.elapsed[1] == (measured ? 7.0 : 0.0));
+  assert(control.elapsed[2] == (measured ? 1.0 : 0.0));
+  assert(control.elapsed[3] == (measured ? 1.0 : 0.0));
+  assert(control.elapsed[4] == (measured ? 1.0 : 0.0));
+  const int full[] = {1,107,10,1,1,1,20,1,11,1,1,1,1,1,1,1,1,1,21,1,207,1};
   const int sample[] = {1,107,10,1,1,1,20,1,11,1,1,1,21,1,207,1};
   const int plain[] = {1,107,207,1};
   const int *expected = REGION_INSTRUMENT ? (report ? full : sample) : plain;
-  assert(event_count == (REGION_INSTRUMENT ? (report ? 20 : 16) : 4));
+  assert(event_count == (REGION_INSTRUMENT ? (report ? 22 : 16) : 4));
   for (int i = 0; i < event_count; ++i) assert(events[i] == expected[i]);
   assert(!memcmp(original, regions, sizeof(original)));
   region_report(&control);
@@ -162,7 +165,7 @@ static void check_contexts(void)
   reads = event_count = 0;
   region_control_init(&a, regions, 1, 1);
   region_control_init(&b, NULL, 0, 0);
-  assert(reads == 0 && a.pending_nowait == -1 && b.pending_nowait == -1);
+  assert(reads == 0);
   iteration_start(&a);
   iteration_start(&b);
   combined(&a);

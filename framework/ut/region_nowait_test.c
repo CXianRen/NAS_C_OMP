@@ -8,14 +8,15 @@
 #include <stdio.h>
 #include <time.h>
 
-enum { P_TAIL, F_TAIL, P_NEXT, F_NEXT, F_ORDINARY,
+enum { P_TAIL, F_TAIL,
+       P_NEXT, F_NEXT, F_AFTER,
        P_SYNC, F_HELPER, P_CONDITIONAL, F_CONDITIONAL, REGION_COUNT };
 static region_info regions[REGION_COUNT] = {
   [P_TAIL] = REGION_INFO(P_TAIL, -1, 0, 0),
   [F_TAIL] = REGION_INFO(F_TAIL, P_TAIL, 0, 1),
   [P_NEXT] = REGION_INFO(P_NEXT, -1, 0, 0),
   [F_NEXT] = REGION_INFO(F_NEXT, P_NEXT, 0, 1),
-  [F_ORDINARY] = REGION_INFO(F_ORDINARY, P_NEXT, 0, 0),
+  [F_AFTER] = REGION_INFO(F_AFTER, P_NEXT, 0, 0),
   [P_SYNC] = REGION_INFO(P_SYNC, -1, 0, 0),
   [F_HELPER] = REGION_INFO(F_HELPER, P_SYNC, 0, 1),
   [P_CONDITIONAL] = REGION_INFO(P_CONDITIONAL, -1, 0, 0),
@@ -41,7 +42,7 @@ static void worker(int delay) {
   atomic_fetch_add(&phase, 1);
 }
 
-/* The final nowait interval must include the enclosing parallel join. */
+/* A terminal chain is one interval, ending after the enclosing parallel join. */
 static void tail(void) {
   atomic_store(&released, 0);
   PARALLEL_START(&control, P_TAIL);
@@ -50,14 +51,16 @@ static void tail(void) {
     FOR_START(&control, F_TAIL);
 #pragma omp for schedule(static, 1) nowait
     for (int i = 0; i < 2; ++i) if (i == 1) worker(1);
-    FOR_END(&control, F_TAIL);
+#pragma omp for schedule(static, 1) nowait
+    for (int i = 0; i < 2; ++i) if (i == 1) worker(0);
 #pragma omp master
     atomic_store(&released, 1);
   }
+  FOR_END(&control, F_TAIL);
   PARALLEL_END(&control, P_TAIL);
 }
 
-/* A following ordinary for closes the prior group before releasing its worker. */
+/* One source pair covers two nowait loops and the following ordinary loop. */
 static void next_for(void) {
   atomic_store(&released, 0);
   PARALLEL_START(&control, P_NEXT);
@@ -65,12 +68,19 @@ static void next_for(void) {
   {
     FOR_START(&control, F_NEXT);
 #pragma omp for schedule(static, 1) nowait
-    for (int i = 0; i < 2; ++i) if (i == 1) worker(0);
-    FOR_END(&control, F_NEXT);
-    FOR_START(&control, F_ORDINARY);
+    for (int i = 0; i < 2; ++i) if (i == 1) worker(1);
+#pragma omp for schedule(static, 1) nowait
+    for (int i = 0; i < 2; ++i) if (i == 1) worker(1);
 #pragma omp for schedule(static, 1)
-    for (int i = 0; i < 2; ++i) if (i == 0) atomic_store(&released, 1);
-    FOR_END(&control, F_ORDINARY);
+    for (int i = 0; i < 2; ++i) {
+      if (i == 0) atomic_store(&released, 1);
+      else worker(0);
+    }
+    FOR_END(&control, F_NEXT);
+    FOR_START(&control, F_AFTER);
+#pragma omp for schedule(static, 1)
+    for (int i = 0; i < 2; ++i) if (i == 0) atomic_fetch_add(&phase, 1);
+    FOR_END(&control, F_AFTER);
   }
   PARALLEL_END(&control, P_NEXT);
 }
@@ -80,10 +90,9 @@ static void helper(void) {
   FOR_START(&control, F_HELPER);
 #pragma omp for schedule(static, 1) nowait
   for (int i = 0; i < 2; ++i) if (i == 1) worker(1);
-  FOR_END(&control, F_HELPER);
 }
 
-/* The explicit barrier closes pending work before the subsequent phase. */
+/* The existing explicit barrier is followed by the helper interval's end. */
 static void explicit_sync(void) {
   atomic_store(&released, 0);
   PARALLEL_START(&control, P_SYNC);
@@ -93,14 +102,14 @@ static void explicit_sync(void) {
 #pragma omp master
     atomic_store(&released, 1);
 #pragma omp barrier
-    REGION_SYNC(&control);
+    FOR_END(&control, F_HELPER);
 #pragma omp master
     atomic_fetch_add(&phase, 10);
   }
   PARALLEL_END(&control, P_SYNC);
 }
 
-/* Skipping a previously measured group must not reuse its pending start. */
+/* A conditional group must execute either both source hooks or neither. */
 static void conditional(int execute) {
   atomic_store(&released, 0);
   PARALLEL_START(&control, P_CONDITIONAL);
@@ -110,11 +119,11 @@ static void conditional(int execute) {
       FOR_START(&control, F_CONDITIONAL);
 #pragma omp for schedule(static, 1) nowait
       for (int i = 0; i < 2; ++i) if (i == 1) worker(1);
-      FOR_END(&control, F_CONDITIONAL);
     }
 #pragma omp master
     atomic_store(&released, 1);
   }
+  if (execute) FOR_END(&control, F_CONDITIONAL);
   PARALLEL_END(&control, P_CONDITIONAL);
 }
 
@@ -131,21 +140,27 @@ int main(int argc, char **argv) {
   tail();
   tail();
   next_for();
+  next_for();
   explicit_sync();
   conditional(1);
+  double conditional_time = control.elapsed[F_CONDITIONAL];
   conditional(0);
+  assert(control.elapsed[F_CONDITIONAL] == conditional_time);
   iteration_end(&control);
-  assert(atomic_load(&phase) == 15);
+  assert(atomic_load(&phase) == 24);
   if (report) {
     double tail_time = control.elapsed[F_TAIL];
-    assert(tail_time >= 2 && tail_time < 3);
+    assert(tail_time >= 4 && tail_time < 5);
     double next_time = control.elapsed[F_NEXT];
-    assert(next_time > 0 && next_time < 0.5);
-    int completed[] = {F_ORDINARY, F_HELPER, F_CONDITIONAL};
-    for (int i = 0; i < 3; ++i) {
+    assert(next_time >= 6 && next_time < 7);
+    assert(control.elapsed[F_AFTER] >= 2 && control.elapsed[F_AFTER] < 3);
+    int completed[] = {F_HELPER, F_CONDITIONAL};
+    for (int i = 0; i < 2; ++i) {
       double seconds = control.elapsed[completed[i]];
       assert(seconds >= 1 && seconds < 2);
     }
+    assert(tail_time < control.elapsed[P_TAIL]);
+    assert(next_time + control.elapsed[F_AFTER] < control.elapsed[P_NEXT]);
   } else {
     assert(clock_calls == 2);
     for (int id = 0; id < REGION_COUNT; ++id)

@@ -169,8 +169,8 @@ void initialize()
   //---------------------------------------------------------------------
   eta = 1.0;
   j   = grid_points[1]-1;
-  FOR_END(&sp_control, SP_F_INITIALIZE_2);
-  FOR_START(&sp_control, SP_F_INITIALIZE_3);
+
+
   #pragma omp for schedule(static)
   for (k = 0; k <= grid_points[2]-1; k++) {
     zeta = (double)k * dnzm1;
@@ -182,7 +182,7 @@ void initialize()
       }
     }
   }
-  FOR_END(&sp_control, SP_F_INITIALIZE_3);
+  FOR_END(&sp_control, SP_F_INITIALIZE_2);
 
   //---------------------------------------------------------------------
   // bottom face                                       
@@ -218,8 +218,8 @@ void initialize()
       }
     }
   }
-  FOR_END(&sp_control, SP_F_INITIALIZE_4);
   } //end parallel
+  FOR_END(&sp_control, SP_F_INITIALIZE_4);
   PARALLEL_END(&sp_control, SP_P_INITIALIZE);
 }
 

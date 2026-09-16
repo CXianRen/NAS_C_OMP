@@ -176,12 +176,21 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
         assert bool(hooks) == bool(instrument), symbols
 
     make()
-    assert len(metadata_names()) == 32, metadata.read_text()
+    assert len(metadata_names()) == 27, metadata.read_text()
+    table = check_sources(source / 'SP/src')
+    rhs_groups = [region for region in table.values()
+                  if region['parent'] == 'SP_P_COMPUTE_RHS']
+    assert [region['line'] for region in rhs_groups] == [51, 97, 285, 333, 396]
+    assert [region['loop_count'] for region in rhs_groups] == [2, 2, 1, 5, 1]
+    for removed in ('SP_F_COMPUTE_RHS_2', 'SP_F_COMPUTE_RHS_4', 'SP_F_COMPUTE_RHS_7',
+                    'SP_F_EXACT_RHS_3', 'SP_F_INITIALIZE_3'):
+        assert removed not in table and removed not in metadata.read_text(), removed
+    assert table['SP_F_COMPUTE_RHS_8']['END'] > table['SP_P_COMPUTE_RHS']['body_end']
     assert 'time report' in run_sp(0)
     before = binary.stat().st_mtime_ns
     make()
     assert before == binary.stat().st_mtime_ns, 'unchanged build compiled again'
-    print('PASS: direct SP.S build, exact shared compile-time metadata, numerical verification and build reuse', flush=True)
+    print('PASS: direct SP.S build, shared metadata, merged nowait groups, numerical verification and build reuse', flush=True)
 
     flags = '-DTEST_BUILD_BRANCH'
     make(flags)
@@ -225,7 +234,7 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
 
     before = binary.stat().st_mtime_ns
     make(flags, instrument=0)
-    assert len(metadata_names()) == 32, metadata.read_text()
+    assert len(metadata_names()) == 27, metadata.read_text()
     assert before != binary.stat().st_mtime_ns and 'time report' not in run_sp(1)
     for selection in ('dummy', 'j2025', 'j2025_b', 'otter', 'offline'):
         reject_tuner(selection, 'INSTRUMENT')
@@ -234,7 +243,7 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
     make(flags, instrument=0)
     assert before == binary.stat().st_mtime_ns, 'unchanged plain build compiled again'
     make(flags, instrument=1)
-    assert len(metadata_names()) == 32, metadata.read_text()
+    assert len(metadata_names()) == 27, metadata.read_text()
     assert before != binary.stat().st_mtime_ns and 'time report' in run_sp(1)
     check_hook_calls(1)
     print('PASS: all tuners see metadata before attach; disabled hooks retain the same complete metadata', flush=True)

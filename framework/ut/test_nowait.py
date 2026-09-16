@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Verify region_control hooks preserve existing nowait synchronization."""
+"""Verify statically paired regions preserve existing nowait synchronization."""
 import argparse
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess
 import sys
@@ -22,6 +23,11 @@ with tempfile.TemporaryDirectory(prefix='manual-nowait-test-') as temporary:
     subprocess.run([sys.executable, str(control / 'generate_regions.py'),
                     '--clang', args.clang, '--output', str(Path(temporary) / 'region_metadata.h'),
                     '--sources', str(source), '--', *flags], check=True)
+    metadata = (Path(temporary) / 'region_metadata.h').read_text()
+    descriptors = set(re.findall(r'^#define REGION_INFO_([PF]_[A-Z_]+)\(', metadata,
+                                 flags=re.MULTILINE))
+    assert descriptors == {'P_TAIL', 'F_TAIL', 'P_NEXT', 'F_NEXT', 'F_AFTER',
+                           'P_SYNC', 'F_HELPER', 'P_CONDITIONAL', 'F_CONDITIONAL'}, metadata
     subprocess.run(shlex.split(args.cc) + [
         *flags, str(source),
         str(control / 'region_control.c'),
@@ -34,5 +40,7 @@ with tempfile.TemporaryDirectory(prefix='manual-nowait-test-') as temporary:
         assert 'manual_nowait=PASS' in text, text
         assert ('time report' in text) == (not arguments), text
 
-print('PASS: manual nowait hooks preserve joins, following loops, explicit barriers,')
-print('      helper returns, repeated/skipped groups and master-only clock reads')
+print('PASS: one static hook pair per merged interval, including an explicit')
+print('      post-join end; only merged IDs appear in compile-time metadata;')
+print('      repeated/skipped pairs, helper start/caller end, no added barriers,')
+print('      master-only clock reads and no region timing when reporting is off')

@@ -73,12 +73,12 @@ void error_norm(double rms[5])
         }
       }
     }
-    FOR_END(&sp_control, SP_F_ERROR_NORM_1);
     for (m = 0; m < 5; m++) {
       #pragma omp atomic
       rms[m] += rms_local[m];
     }
   } //end parallel
+  FOR_END(&sp_control, SP_F_ERROR_NORM_1);
   PARALLEL_END(&sp_control, SP_P_ERROR_NORM);
 
   for (m = 0; m < 5; m++) {
@@ -119,12 +119,12 @@ void rhs_norm(double rms[5])
         } 
       } 
     } 
-    FOR_END(&sp_control, SP_F_RHS_NORM_1);
     for (m = 0; m < 5; m++) {
       #pragma omp atomic
       rms[m] += rms_local[m];
     }
   } //end parallel
+  FOR_END(&sp_control, SP_F_RHS_NORM_1);
   PARALLEL_END(&sp_control, SP_P_RHS_NORM);
 
   for (m = 0; m < 5; m++) {

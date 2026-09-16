@@ -166,8 +166,8 @@ def write_reports(directory, results):
     lines += [
         "",
         "parallel 与 for 的时间有重叠；combined parallel for 在两层显示同一份耗时，不能相加。",
-        "nowait 名称中的起止行号对应首个 nowait pragma 与现有计时结束标记，连续 nowait 组仍累计为一项。",
-        "只由 master 读钟；nowait 组在既定代码边界结束，不增加同步，因此不代表所有线程完成该组的耗时。",
+        "nowait 组以首个 FOR_START 的函数名和行号标识，包含后续 nowait 和第一个普通 for，累计为一项。",
+        "只由 master 读钟；组在普通 for 的隐式 barrier、显式 barrier 或 parallel join 后结束，不增加同步。",
         "",
     ]
     for result in results:

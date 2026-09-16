@@ -34,7 +34,7 @@ typedef struct region_control {
   double step_begin;
 
   /* 内置计时：running 是总窗口，active 控制 region 累计，enabled 控制报告。 */
-  int enabled, active, running, pending_nowait;
+  int enabled, active, running;
   double total_start, total_elapsed;
   double start[REGION_CONTROL_MAX_REGIONS], elapsed[REGION_CONTROL_MAX_REGIONS];
 } region_control;
@@ -70,13 +70,11 @@ void region_parallel_start(region_control *control, int id,
                            const char *file, const char *name, int line);
 /* END 宏入口：结束采样后反馈 callback。 */
 void region_parallel_end(region_control *control, int id);
-/* FOR_START 宏入口：仅由 master 计时，并按 metadata 延后 nowait 结束。 */
+/* FOR_START 宏入口：仅 master 记录此 ID 的起点；合并区间只插入一对 hook。 */
 void region_for_start(region_control *control, int id,
                       const char *file, const char *name, int line);
-/* FOR_END 宏入口：普通 for 结束计时，nowait 保持待结束状态。 */
+/* FOR_END 宏入口：累计同一 ID；尾部 nowait 的 END 显式放在 parallel 外。 */
 void region_for_end(region_control *control, int id);
-/* 既有 barrier 后的 master 入口；结束 pending nowait，不增加 barrier。 */
-void region_sync(region_control *control);
 
 #ifdef __cplusplus
 }
@@ -97,15 +95,11 @@ void region_sync(region_control *control);
 #define FOR_END(control, id) do { \
   _Pragma("omp master") { region_for_end((control), (id)); } \
 } while (0)
-#define REGION_SYNC(control) do { \
-  _Pragma("omp master") { region_sync((control)); } \
-} while (0)
 #else
 #define PARALLEL_START(control, id) ((void)0)
 #define PARALLEL_END(control, id) ((void)0)
 #define FOR_START(control, id) ((void)0)
 #define FOR_END(control, id) ((void)0)
-#define REGION_SYNC(control) ((void)0)
 #endif
 
 #endif

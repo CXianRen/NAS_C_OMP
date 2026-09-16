@@ -161,8 +161,8 @@ void exact_rhs()
   //---------------------------------------------------------------------
   // eta-direction flux differences             
   //---------------------------------------------------------------------
-  FOR_END(&sp_control, SP_F_EXACT_RHS_2);
-  FOR_START(&sp_control, SP_F_EXACT_RHS_3);
+
+
   #pragma omp for schedule(static)
   for (k = 1; k <= grid_points[2]-2; k++) {
     zeta = (double)k * dnzm1;
@@ -254,7 +254,7 @@ void exact_rhs()
       }
     }
   }
-  FOR_END(&sp_control, SP_F_EXACT_RHS_3);
+  FOR_END(&sp_control, SP_F_EXACT_RHS_2);
 
   //---------------------------------------------------------------------
   // zeta-direction flux differences                      
@@ -368,8 +368,8 @@ void exact_rhs()
       }
     }
   }
-  FOR_END(&sp_control, SP_F_EXACT_RHS_5);
   } //end parallel
+  FOR_END(&sp_control, SP_F_EXACT_RHS_5);
   PARALLEL_END(&sp_control, SP_P_EXACT_RHS);
 }
 

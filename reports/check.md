@@ -37,7 +37,7 @@ MG.C    0.77            0.78
 @intel otter - TN - TP
 CG.C    0.58    64, scatter  (0.54)
 BT.C    1.26    64, scatter  (1.258)
-SP.C    0.79    45, scatter  (0.785) (contigious: 0.899)
+SP.C    0.79    45, scatter  (0.785) (contigious: 0.899)     1.06x    
 LU.C    0.475   57, contigious (0.470)
 FT.C    1.65    64, contigious (1.257)
 MG.C    0.98    64, congigious (0.776)
@@ -51,7 +51,7 @@ SP.D   22.6     18.42 (disable)  (original 18.23)
 @amd  otter
 CG.C  0.306     64
 BT.C  0.934     61  SCATTER
-SP.C  0.284     64
+SP.C  0.284     64                                          1.00x
 LU.C  0.497     54  contigious
 FT.C  0.87      64  contigious  FT, 20 iters 显然迭代次数不够
 MG.C  0.515     64              MG, 20 iters

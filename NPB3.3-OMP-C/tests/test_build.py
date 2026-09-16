@@ -47,7 +47,7 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
         env.pop(name, None)
     env.pop('NPB_NITER', None)
     for name in tuple(env):
-        if name.startswith('OTTER_') or name in ('TUNER', 'J2025_ENABLE'):
+        if name.startswith('OTTER_') or name == 'TUNER':
             env.pop(name)
 
     # Building must compile original SP files directly, without invoking generators.
@@ -76,6 +76,7 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
         assert f'build-flag={flag}' in process.stdout, process.stdout
         mode = (selection or 'none').lower()
         assert ('J2025 final region=' in process.stdout) == (mode == 'j2025'), process.stdout
+        assert ('J2025_B final region=' in process.stdout) == (mode == 'j2025_b'), process.stdout
         otter_final = re.findall(r'^Otter final threads=\d+ placement=\S+ state=\S+',
                                  process.stdout, re.MULTILINE)
         assert len(otter_final) == int(mode == 'otter'), process.stdout
@@ -142,7 +143,7 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
     before = binary.stat().st_mtime_ns
     make(flags, instrument=0)
     assert before != binary.stat().st_mtime_ns and 'time report' not in run_sp(1)
-    for selection in ('dummy', 'j2025', 'otter'):
+    for selection in ('dummy', 'j2025', 'j2025_b', 'otter'):
         reject_tuner(selection, 'INSTRUMENT')
     check_hook_calls(0)
     before = binary.stat().st_mtime_ns
@@ -155,18 +156,21 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
 
     # One binary contains all policies; the runtime environment does not rebuild it.
     before = binary.stat().st_mtime_ns
-    for selection in (None, '', 'none', 'dummy', 'j2025', 'otter', 'DuMmY', 'J2025', 'OtTeR'):
+    for selection in (None, '', 'none', 'dummy', 'j2025', 'j2025_b', 'otter',
+                      'DuMmY', 'J2025', 'J2025_B', 'J2025_b', 'OtTeR'):
         make(flags, selection=selection)
         assert before == binary.stat().st_mtime_ns, 'TUNER selection rebuilt the executable'
         assert 'time report' in run_sp(1, selection)
     symbols = subprocess.check_output(['nm', '-C', str(binary)], text=True)
     for symbol in ('tuner_attach', 'hams_binding_apply', 'dummy_select_cfg',
-                   'j2025_select_cfg', 'otter_select_cfg'):
+                   'j2025_create', 'j2025_select_cfg', 'j2025_observe', 'j2025_destroy',
+                   'j2025_b_create', 'j2025_b_select_cfg', 'j2025_b_observe',
+                   'j2025_b_destroy', 'otter_select_cfg'):
         assert symbol in symbols, symbol
     reject_tuner('ottre', 'TUNER')
-    print('PASS: one SP.S binary supports default/none/dummy/J2025/Otter; invalid TUNER is rejected', flush=True)
+    print('PASS: one SP.S binary supports default/none/dummy/J2025/J2025_B/Otter; invalid TUNER is rejected', flush=True)
 
-    for selection in ('none', 'dummy', 'j2025', 'otter'):
+    for selection in ('none', 'dummy', 'j2025', 'j2025_b', 'otter'):
         assert 'time report' not in run_sp(1, selection, report=False,
                                           verbose=1 if selection == 'otter' else None)
     assert 'time report' in run_sp(1, 'otter', verbose=0)

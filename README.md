@@ -7,6 +7,7 @@
 | `none`（默认） | 无 | 不修改配置 | 仅保留可选计时报告 |
 | `dummy` | 固定初始满线程配置 | `PARALLEL_START` | 单个 region，接收后忽略 |
 | `j2025` | 每个 region 独立 | `PARALLEL_START` | 单个 region |
+| `j2025_b` | 每个 region 独立 | `PARALLEL_START` | 单个 region |
 | `otter` | 全局一份 | `step_start` | 整个 step，包含串行部分 |
 
 ## 1. Framework
@@ -25,7 +26,7 @@ for 每个 step:
 
     for 本 step 实际执行的每个 parallel region R:
         PARALLEL_START(R):
-            if tuner in {J2025, Dummy}:
+            if tuner in {J2025, J2025_B, Dummy}:
                 apply_config(tuner.select_cfg(R))
             按需开始 region 计时
 
@@ -33,13 +34,13 @@ for 每个 step:
 
         PARALLEL_END(R):
             按需结束 region 计时
-            if tuner in {J2025, Dummy}: tuner.observe(R, region 耗时)
+            if tuner in {J2025, J2025_B, Dummy}: tuner.observe(R, region 耗时)
 
     step_end()  // 可省略；Otter 结束整步计时并反馈，不切换配置
 
 iteration_end()  // 结算 Otter 最后一个未结束的 step，再结束总窗口
 region_report()
-tuner_detach()   // 注销并释放；J2025 逐 region 输出，Otter 仅输出一条配置
+tuner_detach()   // 注销并释放；J2025/J2025_B 逐 region 输出，Otter 仅输出一条配置
 
 apply_config(cfg):
     允许绑定 → HAMS.apply(cfg)；否则 → 仅设置线程数
@@ -84,7 +85,30 @@ STABLE:
     每次进入该 region，恢复其已测最快配置
 ```
 
-## 3. Otter：先搜线程数，再选绑定
+## 3. J2025_B：先搜线程数，再选绑定
+
+独立实现在 `framework/j2025_b`，有自己的状态和 API；按 region 调优。`CLOSE` 即连续 CPU 绑定（CONTIGUOUS）。
+
+```text
+WARMUP:
+    用 (N, CLOSE) 执行一次，忽略耗时
+    → SEARCH
+
+SEARCH:
+    固定 CLOSE，在 {2, 4, ..., N} 上做 Fibonacci 搜索
+    每次执行一个未测线程数，缓存耗时并缩小区间
+    没有待测候选 → 固定已测最快线程数 best_NT → MAPPING
+
+MAPPING:
+    后续两次调用分别测量 (best_NT, SCATTER)、(best_NT, CLOSE)
+    使用这两个新样本选择较快绑定；相同耗时选 SCATTER
+    → STABLE
+
+STABLE:
+    每次进入该 region，恢复 (best_NT, best_mapping)
+```
+
+## 4. Otter：先搜线程数，再选绑定
 
 `N` 为线程上限，`ε` 为阈值（默认 10%）。全局状态跨 step 推进，**仅在 `step_start` 应用配置，同一步所有 region 共用它**。
 
@@ -108,9 +132,9 @@ else:
 搜索结束：后续 step 复用统一配置
 ```
 
-源码：[挂载](framework/tuner/tuner.cpp) · [计时](framework/region_control/region_control.c) · [绑定](framework/hams/hams_binding.cpp) · [Dummy](framework/dummy/dummy.cpp) · [J2025](framework/j2025/j2025.cpp) · [Otter](framework/otter/otter.cpp)。
+源码：[挂载](framework/tuner/tuner.cpp) · [计时](framework/region_control/region_control.c) · [绑定](framework/hams/hams_binding.cpp) · [Dummy](framework/dummy/dummy.cpp) · [J2025](framework/j2025/j2025.cpp) · [J2025_B](framework/j2025_b/j2025_b.cpp) · [Otter](framework/otter/otter.cpp)。
 
-分阶段伪代码：[J2025](framework/j2025/J-2025.md) · [Otter](framework/otter/Otter.md)。
+分阶段伪代码：[J2025](framework/j2025/J-2025.md) · [J2025_B](framework/j2025_b/J-2025_B.md) · [Otter](framework/otter/Otter.md)。
 
 ## 运行与检查
 
@@ -127,6 +151,6 @@ make -C framework/ut test
 python3 NPB3.3-OMP-C/tests/test_build.py --cc clang-18
 ```
 
-切换 `TUNER=none|dummy|j2025|otter` 无需重编译。Dummy 与 J2025 需要 `OMP_PROC_BIND=false`。`INSTRUMENT=0` 关闭 region hook，此构建仅允许 `TUNER=none`。
+切换 `TUNER=none|dummy|j2025|j2025_b|otter` 无需重编译。Dummy、J2025 与 J2025_B 需要 `OMP_PROC_BIND=false`。`INSTRUMENT=0` 关闭 region hook，此构建仅允许 `TUNER=none`。
 Otter 默认打印搜索过程（step、配置、耗时 `time_us`、预热标记、搜索分支和状态转换），收敛后停止逐步打印；`OTTER_VERBOSE=0` 仅保留最终配置。过程日志不受 `NPB_TIME_REPORT` 控制，打印不计入 tuner 样本。
 独立绑定工具见 [FastCheck](FastCheck/README.md)。

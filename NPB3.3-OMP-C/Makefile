@@ -21,12 +21,14 @@ NPB_CXXFLAGS ?= $(NPB_CFLAGS) -std=c++17
 HWLOC_CFLAGS ?= $(shell pkg-config --cflags hwloc 2>/dev/null)
 HWLOC_LIBS ?= $(shell pkg-config --libs hwloc 2>/dev/null || echo -lhwloc)
 CONTROL_SOURCES := $(FRAMEWORK)/hams/hams_binding.cpp $(FRAMEWORK)/j2025/j2025.cpp \
-	$(FRAMEWORK)/otter/otter.cpp $(FRAMEWORK)/dummy/dummy.cpp $(FRAMEWORK)/tuner/tuner.cpp
+	$(FRAMEWORK)/j2025_b/j2025_b.cpp $(FRAMEWORK)/otter/otter.cpp \
+	$(FRAMEWORK)/dummy/dummy.cpp $(FRAMEWORK)/tuner/tuner.cpp
 CONTROL_OBJECTS := $(patsubst $(FRAMEWORK)/%.cpp,$(BUILD_DIR)/control/%.o,$(CONTROL_SOURCES))
 CONTROL_CPPFLAGS := -DREGION_INSTRUMENT=$(INSTRUMENT) $(HWLOC_CFLAGS)
 CONTROL_LIBS := -lstdc++ $(HWLOC_LIBS)
 CONTROL_HEADERS := $(wildcard $(FRAMEWORK)/hams/*.h $(FRAMEWORK)/j2025/*.h \
-	$(FRAMEWORK)/otter/*.h $(FRAMEWORK)/dummy/*.h $(FRAMEWORK)/tuner/*.h $(FRAMEWORK)/region_control/*.h)
+	$(FRAMEWORK)/j2025_b/*.h $(FRAMEWORK)/otter/*.h $(FRAMEWORK)/dummy/*.h \
+	$(FRAMEWORK)/tuner/*.h $(FRAMEWORK)/region_control/*.h)
 
 SP_SOURCES := $(wildcard $(NPB_DIR)/SP/src/*.c)
 SOURCES := $(SP_SOURCES) $(NPB_DIR)/common/print_results.c $(FRAMEWORK)/region_control/region_control.c

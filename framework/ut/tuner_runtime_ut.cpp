@@ -3,6 +3,7 @@
 #endif
 
 #include "../j2025/j2025.h"
+#include "../j2025_b/j2025_b.h"
 #include "../otter/otter.h"
 #include "../tuner/tuner.h"
 #include <cassert>
@@ -64,6 +65,7 @@ struct mock_policy {
 };
 
 struct j2025 { mock_policy state; };
+struct j2025_b { mock_policy state; };
 struct otter {
   mock_policy state;
   int selections, observations;
@@ -71,11 +73,15 @@ struct otter {
 };
 
 static mock_policy *mock;
+static j2025 *j2025_mock;
+static j2025_b *j2025_b_mock;
 static otter *otter_mock;
 static double expected_otter_seconds;
-static int j2025_created, otter_created, destroyed;
+static int j2025_created, j2025_b_created, otter_created, destroyed;
+static int j2025_selected, j2025_observed, j2025_destroyed;
+static int j2025_b_selected, j2025_b_observed, j2025_b_destroyed;
 
-/* 两种策略都只给出固定配置；UT 不依赖各自搜索算法。 */
+/* 搜索策略都只给出固定配置；UT 不依赖各自搜索算法。 */
 static void init_mock(mock_policy *state, int max_threads,
                       const int *cpus, int cpu_count)
 {
@@ -98,19 +104,33 @@ static void init_mock(mock_policy *state, int max_threads,
   }
 }
 
-j2025 *j2025_create(int region_count, int max_threads)
+template <typename Policy>
+static Policy *create_region_mock(int region_count, int max_threads)
 {
   assert(region_count == 2);
-  ++j2025_created;
   cpu_set_t allowed;
   int rc = sched_getaffinity(0, sizeof(allowed), &allowed);
   assert(rc == 0);
   int cpus[HAMS_CPU_COUNT], count = 0;
   for (int cpu = 0; cpu < HAMS_CPU_COUNT && cpu < CPU_SETSIZE; ++cpu)
     if (CPU_ISSET(cpu, &allowed)) cpus[count++] = cpu;
-  auto *policy = new j2025{};
+  auto *policy = new Policy{};
   init_mock(&policy->state, max_threads, cpus, count);
   return policy;
+}
+
+j2025 *j2025_create(int region_count, int max_threads)
+{
+  ++j2025_created;
+  j2025_mock = create_region_mock<j2025>(region_count, max_threads);
+  return j2025_mock;
+}
+
+j2025_b *j2025_b_create(int region_count, int max_threads)
+{
+  ++j2025_b_created;
+  j2025_b_mock = create_region_mock<j2025_b>(region_count, max_threads);
+  return j2025_b_mock;
 }
 
 otter *otter_create(int max_threads, const int *cpus,
@@ -144,6 +164,15 @@ static void observe(mock_policy *state, int id, double seconds)
 
 const hams_binding_cfg *j2025_select_cfg(j2025 *policy, int id)
 {
+  assert(policy == j2025_mock && !j2025_b_mock);
+  ++j2025_selected;
+  return select(&policy->state, id);
+}
+
+const hams_binding_cfg *j2025_b_select_cfg(j2025_b *policy, int id)
+{
+  assert(policy == j2025_b_mock && !j2025_mock);
+  ++j2025_b_selected;
   return select(&policy->state, id);
 }
 
@@ -158,6 +187,15 @@ const hams_binding_cfg *otter_select_cfg(otter *policy, int step)
 
 void j2025_observe(j2025 *policy, int id, double seconds)
 {
+  assert(policy == j2025_mock && !j2025_b_mock);
+  ++j2025_observed;
+  observe(&policy->state, id, seconds);
+}
+
+void j2025_b_observe(j2025_b *policy, int id, double seconds)
+{
+  assert(policy == j2025_b_mock && !j2025_mock);
+  ++j2025_b_observed;
   observe(&policy->state, id, seconds);
 }
 
@@ -184,6 +222,18 @@ static void check_destroy(mock_policy *state, const region_info *regions)
 
 void j2025_destroy(j2025 *policy, const region_info *regions)
 {
+  assert(policy == j2025_mock && !j2025_b_mock);
+  ++j2025_destroyed;
+  j2025_mock = nullptr;
+  check_destroy(&policy->state, regions);
+  delete policy;
+}
+
+void j2025_b_destroy(j2025_b *policy, const region_info *regions)
+{
+  assert(policy == j2025_b_mock && !j2025_mock);
+  ++j2025_b_destroyed;
+  j2025_b_mock = nullptr;
   check_destroy(&policy->state, regions);
   delete policy;
 }
@@ -264,7 +314,7 @@ static void check_disabled(const char *mode)
     tuner_detach(runtime);
     count_allocations = false;
     assert(allocations == 0 && !mock);
-    assert(!j2025_created && !otter_created && !destroyed);
+    assert(!j2025_created && !j2025_b_created && !otter_created && !destroyed);
     assert(clock_reads == reads + 2);  // 只有应用总窗口读钟。
     assert(omp_get_dynamic() == initial_dynamic && omp_get_max_threads() == full);
     check_unregistered(control);
@@ -312,8 +362,8 @@ static void run_region(region_control *control, int id)
   assert(mock->elapsed == 1.0);
 }
 
-/* J2025 继续按 region 选择 A -> B -> A，不启用 step 计时。 */
-static void check_j2025()
+/* 两个独立策略均按 region 选择 A -> B -> A，回调只能访问各自 API。 */
+static void check_j2025(const char *name)
 {
   region_info regions[] = {{"A", -1, 0, nullptr, 0, 0},
                            {"B", -1, 0, nullptr, 0, 0}};
@@ -321,10 +371,12 @@ static void check_j2025()
   region_control_init(&control, regions, 2, 0);
   int full = omp_get_max_threads();
   tuner *runtime = tuner_attach(&control);
-  assert(runtime && std::strcmp(tuner_name(runtime), "j2025") == 0);
+  assert(runtime && std::strcmp(tuner_name(runtime), name) == 0);
   assert(mock && mock->maximum == full && clock_reads == 0);
   int maximum = mock->maximum;
-  assert(j2025_created == 1 && otter_created == 0);
+  bool variant_b = std::strcmp(name, "j2025_b") == 0;
+  assert(j2025_created == !variant_b && j2025_b_created == variant_b);
+  assert(otter_created == 0);
   assert(control.context && control.callbacks.parallel_start && control.callbacks.parallel_end);
   assert(!control.callbacks.step_start && !control.callbacks.step_end);
   assert(!control.callbacks.step_sample);
@@ -338,12 +390,18 @@ static void check_j2025()
   check_step(&control, 1, false);
   iteration_end(&control);
   assert(clock_reads == 18 && mock->maximum == maximum);
+  assert(j2025_selected == (variant_b ? 0 : 4));
+  assert(j2025_observed == (variant_b ? 0 : 4));
+  assert(j2025_b_selected == (variant_b ? 4 : 0));
+  assert(j2025_b_observed == (variant_b ? 4 : 0));
   const int expected[] = {10, 20, 11, 21, 10, 20, 10, 20};
   assert(mock->event_count == 8);
   for (int i = 0; i < 8; ++i) assert(mock->events[i] == expected[i]);
   hams_binding_cfg last = mock->cfg[0];
   tuner_detach(runtime);
   assert(destroyed == 1 && !mock && clock_reads == 18);
+  assert(j2025_destroyed == !variant_b && j2025_b_destroyed == variant_b);
+  assert(!j2025_mock && !j2025_b_mock);
   check_unregistered(control);
   assert(omp_get_max_threads() == maximum && omp_get_dynamic() == 0);
   check_binding(last);
@@ -355,8 +413,8 @@ static void check_j2025()
   step_end(&control, 2);
   iteration_end(&control);
   assert(clock_reads == 20 && destroyed == 1 && !mock);
-  std::printf("tuner_runtime=j2025 PASS (A%d->B%d->A%d, sample, step, detach)\n",
-              maximum, maximum / 2, maximum);
+  std::printf("tuner_runtime=%s PASS (independent API, A%d->B%d->A%d, sample, step, detach)\n",
+              name, maximum, maximum / 2, maximum);
 }
 
 /* 记录真实 dummy runtime 的回调，同时继续执行原始选择和反馈流程。 */
@@ -399,7 +457,7 @@ static void check_dummy(int report)
   assert(rc == 0);
   tuner *runtime = tuner_attach(&control);
   assert(runtime && std::strcmp(tuner_name(runtime), "dummy") == 0);
-  assert(!mock && !j2025_created && !otter_created && !destroyed);
+  assert(!mock && !j2025_created && !j2025_b_created && !otter_created && !destroyed);
   assert(control.context && control.callbacks.parallel_start && control.callbacks.parallel_end);
   assert(!control.callbacks.step_start && !control.callbacks.step_end);
   assert(!control.callbacks.step_sample && clock_reads == 0);
@@ -437,7 +495,7 @@ static void check_dummy(int report)
   tuner_detach(runtime);
   check_unregistered(control);
   check_binding(expected);
-  assert(!mock && !j2025_created && !otter_created && !destroyed);
+  assert(!mock && !j2025_created && !j2025_b_created && !otter_created && !destroyed);
   assert(clock_reads == 10);
   std::printf("tuner_runtime=dummy report=%d PASS (full=%d, select, binding, sample, detach)\n",
               report, full);
@@ -470,7 +528,7 @@ static void check_otter(int report)
   tuner *runtime = tuner_attach(&control);
   assert(runtime && std::strcmp(tuner_name(runtime), "otter") == 0);
   assert(mock && mock->maximum <= full && clock_reads == 0);
-  assert(otter_created == 1 && j2025_created == 0);
+  assert(otter_created == 1 && j2025_created == 0 && j2025_b_created == 0);
   assert(control.context && control.callbacks.step_start && control.callbacks.step_sample);
   assert(!control.callbacks.parallel_start && !control.callbacks.parallel_end);
   assert(!control.callbacks.step_end && !otter_mock->selections);
@@ -535,11 +593,14 @@ int main(int argc, char **argv)
   bool default_mode = std::strcmp(mode, "default") == 0;
   bool otter_report = std::strcmp(mode, "otter-report") == 0;
   bool dummy_report = std::strcmp(mode, "dummy-report") == 0;
-  const char *selection = otter_report ? "otter" : dummy_report ? "DuMmY" : mode;
+  bool j2025_b_case = std::strcmp(mode, "j2025_b-case") == 0;
+  const char *selection = otter_report ? "otter" : dummy_report ? "DuMmY" :
+                          j2025_b_case ? "J2025_b" : mode;
   int rc = default_mode ? unsetenv("TUNER") : setenv("TUNER", selection, 1);
   assert(rc == 0);
   if (default_mode || std::strcmp(mode, "none") == 0) check_disabled(mode);
-  else if (std::strcmp(mode, "j2025") == 0) check_j2025();
+  else if (std::strcmp(mode, "j2025") == 0) check_j2025("j2025");
+  else if (std::strcmp(mode, "j2025_b") == 0 || j2025_b_case) check_j2025("j2025_b");
   else if (std::strcmp(mode, "dummy") == 0 || dummy_report) check_dummy(dummy_report);
   else if (std::strcmp(mode, "otter") == 0 || otter_report) check_otter(otter_report);
   else assert(false);

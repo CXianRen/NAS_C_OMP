@@ -2,6 +2,7 @@
 #include "../dummy/dummy.h"
 #include "../hams/hams_binding.h"
 #include "../j2025/j2025.h"
+#include "../j2025_b/j2025_b.h"
 #include "../otter/otter.h"
 #include "../region_control/region_control.h"
 
@@ -48,6 +49,12 @@ static const tuner_operations j2025_operations{
     [](void *state, int id) { return j2025_select_cfg(static_cast<j2025 *>(state), id); },
     [](void *state, int id, double seconds) { j2025_observe(static_cast<j2025 *>(state), id, seconds); },
     [](void *state, const region_info *regions) { j2025_destroy(static_cast<j2025 *>(state), regions); }};
+
+static const tuner_operations j2025_b_operations{
+    "j2025_b", tuning_scope::region,
+    [](void *state, int id) { return j2025_b_select_cfg(static_cast<j2025_b *>(state), id); },
+    [](void *state, int id, double seconds) { j2025_b_observe(static_cast<j2025_b *>(state), id, seconds); },
+    [](void *state, const region_info *regions) { j2025_b_destroy(static_cast<j2025_b *>(state), regions); }};
 
 static const tuner_operations otter_operations{
     "otter", tuning_scope::step,
@@ -168,8 +175,9 @@ tuner *tuner_attach_named(region_control *control, const char *name)
   const tuner_operations *operations = nullptr;
   if (!strcasecmp(name, "dummy")) operations = &dummy_operations;
   else if (!strcasecmp(name, "j2025")) operations = &j2025_operations;
+  else if (!strcasecmp(name, "j2025_b")) operations = &j2025_b_operations;
   else if (!strcasecmp(name, "otter")) operations = &otter_operations;
-  else fail("TUNER must be none, dummy, j2025 or otter");
+  else fail("TUNER must be none, dummy, j2025, j2025_b or otter");
   if (!REGION_INSTRUMENT) fail("TUNER requires INSTRUMENT=1");
   assert(control && control->region_count > 0);
   assert(!control->context && !control->callbacks.parallel_start &&
@@ -194,6 +202,12 @@ tuner *tuner_attach_named(region_control *control, const char *name)
       fail("J2025 requires an even initial thread limit of at least 2");
     runtime->pin_threads = true;
     runtime->policy = j2025_create(control->region_count, status.max_threads);
+  } else if (operations == &j2025_b_operations) {
+    if (!status.supported) fail("J2025_B requires OMP_PROC_BIND=false");
+    if (status.max_threads < 2 || status.max_threads % 2)
+      fail("J2025_B requires an even initial thread limit of at least 2");
+    runtime->pin_threads = true;
+    runtime->policy = j2025_b_create(control->region_count, status.max_threads);
   } else {
     auto cpus = discover_otter_cpus();
     int maximum = status.max_threads;

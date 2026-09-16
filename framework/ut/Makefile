@@ -1,4 +1,7 @@
 CC = clang-18
+CLANG ?= $(if $(findstring clang,$(CC)),$(CC),clang-18)
+PYTHON ?= python3
+.DEFAULT_GOAL := all
 CXX = $(if $(findstring clang,$(CC)),$(subst clang,clang++,$(CC)),g++)
 CFLAGS = -O2 -std=c11 -fopenmp -Wall -Wextra
 CXXFLAGS = -O2 -std=c++17 -Wall -Wextra
@@ -9,21 +12,24 @@ J2025 = ../j2025
 J2025_B = ../j2025_b
 OTTER = ../otter
 DUMMY = ../dummy
+OFFLINE = ../offline
 TUNER_DIR = ../tuner
 CONTROL = ../region_control
 HWLOC_CFLAGS ?= $(shell pkg-config --cflags hwloc 2>/dev/null)
 HWLOC_LIBS ?= $(shell pkg-config --libs hwloc 2>/dev/null || echo -lhwloc)
+CONTROL_METADATA = $(BUILD_DIR)/control_metadata/region_metadata.h
+-include $(BUILD_DIR)/control_metadata/region_metadata.d
 CONTROL_TESTS = $(BUILD_DIR)/region_control_ut $(BUILD_DIR)/region_control_ut_noinstrument
 TARGETS = $(BUILD_DIR)/hams_binding_ut $(BUILD_DIR)/j2025_ut \
 	$(BUILD_DIR)/j2025_b_ut \
-	$(BUILD_DIR)/otter_ut $(BUILD_DIR)/dummy_ut $(BUILD_DIR)/tuner_runtime_ut \
+	$(BUILD_DIR)/otter_ut $(BUILD_DIR)/dummy_ut $(BUILD_DIR)/offline_ut $(BUILD_DIR)/tuner_runtime_ut \
 	$(CONTROL_TESTS)
 RUN_OMP = env -u OMP_PLACES -u KMP_AFFINITY -u GOMP_CPU_AFFINITY \
 	-u TUNER -u OTTER_PIN_THREADS -u OTTER_PHYSICAL_CORES -u OTTER_MAX_THREADS \
-	-u OTTER_THRESHOLD_PERCENT -u OTTER_GOLDEN_DISTANCE \
+	-u OTTER_THRESHOLD_PERCENT -u OTTER_GOLDEN_DISTANCE -u OFFLINE_CONFIG \
 	OMP_PROC_BIND=false OMP_DYNAMIC=false OMP_NUM_THREADS=$(THREADS)
 
-.PHONY: all test hams-test j2025-test j2025-b-test otter-test dummy-test tuner-test region-control-test clean
+.PHONY: all test hams-test j2025-test j2025-b-test otter-test dummy-test offline-test tuner-test region-control-test clean
 
 all: $(TARGETS)
 
@@ -48,26 +54,35 @@ $(BUILD_DIR)/otter_ut: otter_ut.cpp $(OTTER)/otter.cpp $(OTTER)/otter.h $(HAMS)/
 $(BUILD_DIR)/dummy_ut: dummy_ut.cpp $(DUMMY)/dummy.cpp $(DUMMY)/dummy.h $(HAMS)/hams_binding.h Makefile | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -UNDEBUG dummy_ut.cpp $(DUMMY)/dummy.cpp $(LDFLAGS) -o $@
 
+$(BUILD_DIR)/offline_ut: offline_ut.cpp $(OFFLINE)/offline.cpp $(OFFLINE)/offline.h $(HAMS)/hams_binding.h $(CONTROL)/region_control.h Makefile | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -UNDEBUG offline_ut.cpp $(OFFLINE)/offline.cpp $(LDFLAGS) -o $@
+
 $(BUILD_DIR)/region_control.o: $(CONTROL)/region_control.c $(CONTROL)/region_control.h Makefile | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -UNDEBUG -c $< -o $@
 
-# mock 搜索策略，Dummy 使用真实实现；挂载、线程绑定和采样均使用公共框架。
+# mock 搜索策略，Dummy/Offline 使用真实实现；挂载、绑定和采样均使用公共框架。
 $(BUILD_DIR)/tuner_runtime_ut: tuner_runtime_ut.cpp $(TUNER_DIR)/tuner.cpp $(TUNER_DIR)/tuner.h \
 	$(J2025)/j2025.h $(J2025_B)/j2025_b.h $(OTTER)/otter.h $(HAMS)/hams_binding.cpp $(HAMS)/hams_binding.h \
 	$(DUMMY)/dummy.cpp $(DUMMY)/dummy.h \
+	$(OFFLINE)/offline.cpp $(OFFLINE)/offline.h \
 	$(CONTROL)/region_control.h $(BUILD_DIR)/region_control.o Makefile
 	$(CXX) $(CPPFLAGS) $(HWLOC_CFLAGS) $(CXXFLAGS) -fopenmp -UNDEBUG tuner_runtime_ut.cpp \
-		$(TUNER_DIR)/tuner.cpp $(DUMMY)/dummy.cpp $(HAMS)/hams_binding.cpp $(BUILD_DIR)/region_control.o \
+		$(TUNER_DIR)/tuner.cpp $(DUMMY)/dummy.cpp $(OFFLINE)/offline.cpp $(HAMS)/hams_binding.cpp \
+		$(BUILD_DIR)/region_control.o \
 		$(LDFLAGS) $(HWLOC_LIBS) -Wl,--wrap=omp_get_wtime -o $@
 
-# 同一份桩 UT 分别检查启用和关闭插桩的行为。
-$(CONTROL_TESTS): region_control_ut.c $(CONTROL)/region_control.c $(CONTROL)/region_control.h Makefile | $(BUILD_DIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -UNDEBUG \
+$(CONTROL_METADATA): region_control_ut.c $(CONTROL)/region_control.h $(CONTROL)/generate_regions.py Makefile | $(BUILD_DIR)
+	$(PYTHON) $(CONTROL)/generate_regions.py --clang "$(CLANG)" --output "$@" --depfile "$(@:.h=.d)" \
+		--sources region_control_ut.c -- $(CPPFLAGS) $(CFLAGS) -UNDEBUG
+
+# 同一份编译期元数据用于启用和关闭插桩的行为测试。
+$(CONTROL_TESTS): region_control_ut.c $(CONTROL)/region_control.c $(CONTROL)/region_control.h $(CONTROL_METADATA) Makefile | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -I"$(dir $(CONTROL_METADATA))" -UNDEBUG \
 		$(if $(findstring noinstrument,$@),-DREGION_INSTRUMENT=0) \
 		region_control_ut.c $(CONTROL)/region_control.c $(LDFLAGS) \
 		-Wl,--wrap=omp_get_wtime -o $@
 
-test: hams-test j2025-test j2025-b-test otter-test dummy-test tuner-test region-control-test
+test: hams-test j2025-test j2025-b-test otter-test dummy-test offline-test tuner-test region-control-test
 
 hams-test: $(BUILD_DIR)/hams_binding_ut
 	$(RUN_OMP) $<
@@ -84,6 +99,9 @@ otter-test: $(BUILD_DIR)/otter_ut
 dummy-test: $(BUILD_DIR)/dummy_ut
 	$<
 
+offline-test: $(BUILD_DIR)/offline_ut
+	$<
+
 tuner-test: $(BUILD_DIR)/tuner_runtime_ut
 	$(RUN_OMP) $< default
 	$(RUN_OMP) $< none
@@ -92,6 +110,13 @@ tuner-test: $(BUILD_DIR)/tuner_runtime_ut
 	$(RUN_OMP) OMP_NUM_THREADS=1 $< dummy
 	$(RUN_OMP) OMP_NUM_THREADS=3 $< dummy
 	$(RUN_OMP) OMP_NUM_THREADS=3 OMP_THREAD_LIMIT=2 $< dummy
+	$(RUN_OMP) $< offline
+	$(RUN_OMP) $< offline-report
+	$(RUN_OMP) $< offline-empty
+	$(RUN_OMP) $< offline-missing
+	$(RUN_OMP) $< offline-unset
+	$(RUN_OMP) $< offline-empty-file
+	$(RUN_OMP) OMP_NUM_THREADS=3 OMP_THREAD_LIMIT=2 $< offline
 	$(RUN_OMP) $< j2025
 	$(RUN_OMP) $< j2025_b
 	$(RUN_OMP) $< j2025_b-case
@@ -99,9 +124,10 @@ tuner-test: $(BUILD_DIR)/tuner_runtime_ut
 	$(RUN_OMP) $< otter-report
 
 region-control-test: $(CONTROL_TESTS)
+	$(PYTHON) test_region_metadata.py --clang "$(CLANG)"
 	$(RUN_OMP) $(BUILD_DIR)/region_control_ut
 	$(RUN_OMP) $(BUILD_DIR)/region_control_ut_noinstrument
-	python3 test_nowait.py --cc "$(CC)"
+	$(PYTHON) test_nowait.py --cc "$(CC)" --clang "$(CLANG)"
 
 clean:
 	$(RM) -r $(BUILD_DIR)

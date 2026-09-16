@@ -10,6 +10,10 @@ void region_control_init(region_control *control, region_info *regions,
 {
   assert(control && count >= 0 && count <= REGION_CONTROL_MAX_REGIONS);
   assert(count == 0 || regions);
+  for (int id = 0; id < count; ++id) {
+    assert(regions[id].name && regions[id].name[0]);
+    assert(regions[id].file && regions[id].file[0] && regions[id].line > 0);
+  }
   memset(control, 0, sizeof(*control));
   control->regions = regions;
   control->region_count = count;
@@ -120,24 +124,12 @@ void region_report(const region_control *control)
   }
 }
 
-/* 首次执行只保存编译器字符串指针；后续调用无需字符串处理。 */
-static void locate(region_control *control, int id,
-                   const char *file, const char *name, int line)
-{
-  assert(id >= 0 && id < control->region_count);
-  region_info *region = &control->regions[id];
-  if (!region->name) {
-    region->name = name;
-    region->file = file;
-    region->line = line;
-  }
-}
-
 /* callback 完成后采样；关闭报告时仍为 parallel_end 提供单次耗时。 */
 void region_parallel_start(region_control *control, int id,
                            const char *file, const char *name, int line)
 {
-  locate(control, id, file, name, line);
+  (void)file; (void)name; (void)line;
+  assert(id >= 0 && id < control->region_count);
   assert(control->parallel_id == -1);
   control->parallel_id = id;
   int callbacks_active = control->running && control->in_step;
@@ -175,7 +167,8 @@ void region_parallel_end(region_control *control, int id)
 void region_for_start(region_control *control, int id,
                       const char *file, const char *name, int line)
 {
-  locate(control, id, file, name, line);
+  (void)file; (void)name; (void)line;
+  assert(id >= 0 && id < control->region_count);
   if (!control->active) return;
   double begin = omp_get_wtime();
   int pending = control->pending_nowait;

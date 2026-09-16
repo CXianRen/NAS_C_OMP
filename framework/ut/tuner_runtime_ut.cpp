@@ -13,6 +13,7 @@
 #include <new>
 #include <omp.h>
 #include <sched.h>
+#include <unistd.h>
 
 static bool count_allocations;
 static unsigned allocations;
@@ -291,8 +292,8 @@ static void check_disabled(const char *mode)
     assert(full <= HAMS_CPU_COUNT);
     team_snapshot before{}, after{};
     capture_team(before);
-    region_info regions[] = {{"A", -1, 0, nullptr, 0, 0},
-                             {"B", -1, 0, nullptr, 0, 0}};
+    region_info regions[] = {{"A", -1, 0, "runtime_ut.c", 10, 0},
+                             {"B", -1, 0, "runtime_ut.c", 20, 0}};
     region_control control;
     region_control_init(&control, regions, 2, 0);
     int reads = clock_reads;
@@ -365,8 +366,8 @@ static void run_region(region_control *control, int id)
 /* 两个独立策略均按 region 选择 A -> B -> A，回调只能访问各自 API。 */
 static void check_j2025(const char *name)
 {
-  region_info regions[] = {{"A", -1, 0, nullptr, 0, 0},
-                           {"B", -1, 0, nullptr, 0, 0}};
+  region_info regions[] = {{"A", -1, 0, "runtime_ut.c", 10, 0},
+                           {"B", -1, 0, "runtime_ut.c", 20, 0}};
   region_control control;
   region_control_init(&control, regions, 2, 0);
   int full = omp_get_max_threads();
@@ -440,8 +441,8 @@ static void dummy_parallel_end(void *context, int id, double seconds)
 /* dummy 始终使用挂载时的满线程配置，报告开关不关闭选择、绑定和采样。 */
 static void check_dummy(int report)
 {
-  region_info regions[] = {{"A", -1, 0, nullptr, 0, 0},
-                           {"B", -1, 0, nullptr, 0, 0}};
+  region_info regions[] = {{"A", -1, 0, "runtime_ut.c", 10, 0},
+                           {"B", -1, 0, "runtime_ut.c", 20, 0}};
   region_control control;
   region_control_init(&control, regions, 2, report);
   int full = omp_get_max_threads();
@@ -501,6 +502,131 @@ static void check_dummy(int report)
               report, full);
 }
 
+static region_control_callbacks offline_callbacks;
+static int offline_selections, offline_observations, offline_region;
+static double offline_seconds;
+
+static void offline_parallel_start(void *context, int id)
+{
+  assert(id == offline_region && offline_selections == offline_observations);
+  ++offline_selections;
+  offline_callbacks.parallel_start(context, id);
+}
+
+static void offline_parallel_end(void *context, int id, double seconds)
+{
+  assert(id == offline_region && offline_selections == offline_observations + 1);
+  assert(seconds == offline_seconds);
+  ++offline_observations;
+  offline_callbacks.parallel_end(context, id, seconds);
+}
+
+/* 使用真实 offline 策略和 HAMS，验证逐 region 配置、默认回退和采样。 */
+static void check_offline(const char *mode)
+{
+  const bool report = std::strcmp(mode, "offline-report") == 0;
+  const bool configured = report || std::strcmp(mode, "offline") == 0;
+  const bool empty_file = std::strcmp(mode, "offline-empty-file") == 0;
+  region_info regions[] = {{"A", -1, 0, "runtime_ut.c", 10, 0},
+                           {"B", -1, 0, "runtime_ut.c", 20, 0},
+                           {"unused", -1, 0, "runtime_ut.c", 30, 0},
+                           {"inner", 0, 0, "runtime_ut.c", 40, 0}};
+  region_control control;
+  region_control_init(&control, regions, 4, report);
+  assert(control.regions == regions && control.region_count == 4);
+  assert(std::strcmp(control.regions[2].name, "unused") == 0);
+  assert(control.regions[2].line == 30);
+  int full = omp_get_max_threads();
+  if (full > omp_get_thread_limit()) full = omp_get_thread_limit();
+  if (full > HAMS_CPU_COUNT) full = HAMS_CPU_COUNT;
+  hams_binding_cfg fallback{}, selected{};
+  fallback.thread_number = full;
+  for (int tid = 0; tid < full; ++tid) {
+    fallback.mask[tid] = true;
+    fallback.tid_to_cpu[tid] = tid;
+  }
+  selected.thread_number = full >= 3 ? 3 : 1;
+  unsigned mask = 0;
+  for (int tid = 0; tid < selected.thread_number; ++tid) {
+    int cpu = full >= 3 ? 2 * tid : full - 1;
+    selected.mask[cpu] = true;
+    selected.tid_to_cpu[tid] = cpu;
+    mask |= 1u << cpu;
+  }
+
+  char path[] = "/tmp/offline-runtime-ut-XXXXXX";
+  int fd = mkstemp(path);
+  assert(fd >= 0);
+  FILE *file = fdopen(fd, "w");
+  assert(file);
+  if (configured) {
+    assert(std::fprintf(file, "A:10;%d;%x\nunused:30;1;1\n",
+                        selected.thread_number, mask) > 0);
+  }
+  assert(std::fclose(file) == 0);
+  if (configured || empty_file) {
+    assert(setenv("OFFLINE_CONFIG", path, 1) == 0);
+  } else if (std::strcmp(mode, "offline-unset") == 0) {
+    assert(unsetenv("OFFLINE_CONFIG") == 0);
+  } else if (std::strcmp(mode, "offline-empty") == 0) {
+    assert(setenv("OFFLINE_CONFIG", "", 1) == 0);
+  } else {
+    assert(std::strcmp(mode, "offline-missing") == 0);
+    assert(setenv("OFFLINE_CONFIG", path, 1) == 0);
+  }
+  if (!configured && !empty_file) assert(unlink(path) == 0);
+  assert(setenv("OTTER_MAX_THREADS", "1", 1) == 0);
+  tuner *runtime = tuner_attach(&control);
+  assert(runtime && std::strcmp(tuner_name(runtime), "offline") == 0);
+  assert(std::strcmp(regions[0].name, "A") == 0 && regions[0].line == 10);
+  assert(std::strcmp(regions[1].name, "B") == 0 && regions[1].line == 20);
+  if (configured || empty_file) assert(unlink(path) == 0);
+  assert(!mock && !j2025_created && !j2025_b_created && !otter_created && !destroyed);
+  assert(control.context && control.callbacks.parallel_start && control.callbacks.parallel_end);
+  assert(!control.callbacks.step_start && !control.callbacks.step_end);
+  assert(!control.callbacks.step_sample && clock_reads == 0);
+  offline_callbacks = control.callbacks;
+  control.callbacks.parallel_start = offline_parallel_start;
+  control.callbacks.parallel_end = offline_parallel_end;
+
+  const int ids[] = {0, 1, 0, 1};
+  const double work[] = {1.0, 7.0, 0.0, 20.0};
+  iteration_start(&control);
+  for (int visit = 0; visit < 4; ++visit) {
+    if (visit % 2 == 0) {
+      int reads = clock_reads;
+      step_start(&control, visit / 2);
+      assert(clock_reads == reads && offline_selections == visit);
+    }
+    int id = ids[visit];
+    offline_region = id;
+    offline_seconds = work[visit] + 1.0;
+    region_parallel_start(&control, id, "runtime_ut.c", id ? "B" : "A", id ? 20 : 10);
+    assert(offline_selections == visit + 1 && offline_observations == visit);
+    const hams_binding_cfg &expected = configured && id == 0 ? selected : fallback;
+    check_binding(expected);
+    clock_now += work[visit];
+    region_parallel_end(&control, id);
+    assert(offline_observations == visit + 1);
+    check_binding(expected);
+  }
+  int reads = clock_reads;
+  step_end(&control, 1);
+  assert(clock_reads == reads);
+  iteration_end(&control);
+  assert(clock_reads == 10 && offline_selections == 4 && offline_observations == 4);
+  assert(control.elapsed[0] == (report ? 3.0 : 0.0));
+  assert(control.elapsed[1] == (report ? 29.0 : 0.0));
+  assert(omp_get_max_threads() == full && omp_get_dynamic() == 0);
+  tuner_detach(runtime);
+  check_unregistered(control);
+  check_binding(fallback);
+  assert(!mock && !j2025_created && !j2025_b_created && !otter_created && !destroyed);
+  assert(clock_reads == 10);
+  std::printf("tuner_runtime=%s PASS (full=%d, shared metadata, fixed masks, fallback, sample, detach)\n",
+              mode, full);
+}
+
 /* Otter 的同一 step 内，所有 region（包括重复 region）共享当前配置。 */
 static void run_otter_region(region_control *control, int id, int cfg,
                               double work)
@@ -520,8 +646,8 @@ static void run_otter_region(region_control *control, int id, int cfg,
 /* 整步样本包含串行间隙，排除选择/反馈；报告开关不控制 Otter 采样。 */
 static void check_otter(int report)
 {
-  region_info regions[] = {{"A", -1, 0, nullptr, 0, 0},
-                           {"B", -1, 0, nullptr, 0, 0}};
+  region_info regions[] = {{"A", -1, 0, "runtime_ut.c", 10, 0},
+                           {"B", -1, 0, "runtime_ut.c", 20, 0}};
   region_control control;
   region_control_init(&control, regions, 2, report);
   int full = omp_get_max_threads();
@@ -593,15 +719,17 @@ int main(int argc, char **argv)
   bool default_mode = std::strcmp(mode, "default") == 0;
   bool otter_report = std::strcmp(mode, "otter-report") == 0;
   bool dummy_report = std::strcmp(mode, "dummy-report") == 0;
+  bool offline_mode = std::strncmp(mode, "offline", 7) == 0;
   bool j2025_b_case = std::strcmp(mode, "j2025_b-case") == 0;
   const char *selection = otter_report ? "otter" : dummy_report ? "DuMmY" :
-                          j2025_b_case ? "J2025_b" : mode;
+                          offline_mode ? "OffLiNe" : j2025_b_case ? "J2025_b" : mode;
   int rc = default_mode ? unsetenv("TUNER") : setenv("TUNER", selection, 1);
   assert(rc == 0);
   if (default_mode || std::strcmp(mode, "none") == 0) check_disabled(mode);
   else if (std::strcmp(mode, "j2025") == 0) check_j2025("j2025");
   else if (std::strcmp(mode, "j2025_b") == 0 || j2025_b_case) check_j2025("j2025_b");
   else if (std::strcmp(mode, "dummy") == 0 || dummy_report) check_dummy(dummy_report);
+  else if (offline_mode) check_offline(mode);
   else if (std::strcmp(mode, "otter") == 0 || otter_report) check_otter(otter_report);
   else assert(false);
 }

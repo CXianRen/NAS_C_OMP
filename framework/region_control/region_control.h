@@ -3,7 +3,8 @@
 
 #define REGION_CONTROL_MAX_REGIONS 256
 
-/* parent=-1 表示 parallel；combined 的 parallel/for 两行共用同一份耗时。 */
+/* name/file/line 由编译期扫描生成，运行前已完整可用。
+ * parent=-1 表示 parallel；combined 的 parallel/for 两行共用同一份耗时。 */
 typedef struct {
   const char *name;
   int parent, combined;
@@ -42,7 +43,7 @@ typedef struct region_control {
 extern "C" {
 #endif
 
-/* 初始化内置计时和可写静态表；name=NULL 的 region 在首次 START 时捕获位置。 */
+/* 挂载编译期初始化的 region 表；所有 tuner 共用此元数据，不依赖首次执行。 */
 void region_control_init(region_control *control, region_info *regions,
                          int count, int report);
 /* 复制 callback/context；callbacks=NULL 清空注册，不接管 context 所有权。 */
@@ -63,7 +64,8 @@ void step_end(region_control *control, int step);
 double iteration_time(const region_control *control);
 /* 输出已启用的 parallel/for 报告。 */
 void region_report(const region_control *control);
-/* START 宏入口：首次保存位置，调用 parallel callback 后开始采样。 */
+/* START 宏入口：调用 parallel callback 后开始采样。
+ * file/name/line 用于编译期扫描，运行时不再写入元数据。 */
 void region_parallel_start(region_control *control, int id,
                            const char *file, const char *name, int line);
 /* END 宏入口：结束采样后反馈 callback。 */
@@ -84,7 +86,7 @@ void region_sync(region_control *control);
 #define REGION_INSTRUMENT 1
 #endif
 
-#if REGION_INSTRUMENT
+#if REGION_INSTRUMENT || defined(REGION_METADATA_SCAN)
 #define PARALLEL_START(control, id) \
   region_parallel_start((control), (id), __FILE__, __func__, __LINE__)
 #define PARALLEL_END(control, id) region_parallel_end((control), (id))

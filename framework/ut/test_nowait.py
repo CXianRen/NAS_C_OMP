@@ -5,18 +5,25 @@ import os
 from pathlib import Path
 import shlex
 import subprocess
+import sys
 import tempfile
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--cc', default='gcc')
+parser.add_argument('--clang', default='clang-18')
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[2]
 control = root / 'framework/region_control'
 with tempfile.TemporaryDirectory(prefix='manual-nowait-test-') as temporary:
     binary = Path(temporary) / 'test'
+    source = Path(__file__).with_name('region_nowait_test.c')
+    flags = ['-O2', '-std=c11', '-fopenmp', '-Wall', '-Wextra', '-Werror',
+             '-I', str(control), '-I', temporary]
+    subprocess.run([sys.executable, str(control / 'generate_regions.py'),
+                    '--clang', args.clang, '--output', str(Path(temporary) / 'region_metadata.h'),
+                    '--sources', str(source), '--', *flags], check=True)
     subprocess.run(shlex.split(args.cc) + [
-        '-O2', '-std=c11', '-fopenmp', '-Wall', '-Wextra', '-Werror',
-        '-I', str(control), str(Path(__file__).with_name('region_nowait_test.c')),
+        *flags, str(source),
         str(control / 'region_control.c'),
         '-Wl,--wrap=omp_get_wtime', '-o', str(binary),
     ], check=True)

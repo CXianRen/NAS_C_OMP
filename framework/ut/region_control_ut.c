@@ -1,4 +1,5 @@
 #include "../region_control/region_control.h"
+#include "region_metadata.h"
 #include <assert.h>
 #include <omp.h>
 #include <stdio.h>
@@ -46,24 +47,20 @@ static void on_step_end(void *context, int step)
   events[event_count++] = 200 + step;
 }
 
-/* Execute a combined region once and verify the automatically captured location. */
+/* Execute a combined region without changing its compile-time metadata. */
 static void combined(region_control *control)
 {
   (void)control;
   int sum = 0;
-#if REGION_INSTRUMENT
-  int line = __LINE__ + 2;
-#endif
+  int line = __LINE__ + 1;
   PARALLEL_START(control, 0);
   #pragma omp parallel for reduction(+:sum)
   for (int i = 0; i < 8; ++i) sum += i;
   PARALLEL_END(control, 0);
   assert(sum == 28);
-#if REGION_INSTRUMENT
   assert(control->regions[0].line == line);
   assert(!strcmp(control->regions[0].name, __func__));
   assert(!strcmp(control->regions[0].file, __FILE__));
-#endif
 }
 
 /* Preserve nowait endpoints at the next for and at the outer parallel join. */
@@ -95,8 +92,8 @@ static void with_loops(region_control *control)
 static void check(int report)
 {
   region_info regions[] = {
-    {NULL, -1, 1, NULL, 0, 0}, {NULL, -1, 0, NULL, 0, 0},
-    {NULL, 1, 0, NULL, 0, 1}, {NULL, 1, 0, NULL, 0, 0}, {NULL, 1, 0, NULL, 0, 1}
+    REGION_INFO(0, -1, 1, 0), REGION_INFO(1, -1, 0, 0),
+    REGION_INFO(2, 1, 0, 1), REGION_INFO(3, 1, 0, 0), REGION_INFO(4, 1, 0, 1)
   };
   const region_control_callbacks callbacks = {
     on_step_start, on_parallel_start, on_parallel_end, on_step_end, NULL
@@ -104,6 +101,14 @@ static void check(int report)
   region_control control;
   reads = event_count = 0;
   region_control_init(&control, regions, 5, report);
+  /* Every descriptor is readable before any region executes, even without hooks. */
+  for (int id = 0; id < 5; ++id) {
+    assert(!strcmp(control.regions[id].name, id ? "with_loops" : "combined"));
+    assert(!strcmp(control.regions[id].file, __FILE__));
+    assert(control.regions[id].line > 0);
+  }
+  region_info original[5];
+  memcpy(original, regions, sizeof(original));
   region_control_register(&control, &callbacks, &report);
   step_start(&control, 0);
   combined(&control);  /* Warmup outside the formal window has no callbacks/clocks. */
@@ -128,6 +133,7 @@ static void check(int report)
   const int *expected = REGION_INSTRUMENT ? (report ? full : sample) : plain;
   assert(event_count == (REGION_INSTRUMENT ? (report ? 20 : 16) : 4));
   for (int i = 0; i < event_count; ++i) assert(events[i] == expected[i]);
+  assert(!memcmp(original, regions, sizeof(original)));
   region_report(&control);
   assert(reads == expected_reads);
   region_control_register(&control, NULL, NULL);
@@ -151,7 +157,7 @@ static void check(int report)
 /* Interleave independent contexts, including total-only and repeated end/report calls. */
 static void check_contexts(void)
 {
-  region_info regions[] = {{NULL, -1, 1, NULL, 0, 0}};
+  region_info regions[] = {REGION_INFO(0, -1, 1, 0)};
   region_control a, b;
   reads = event_count = 0;
   region_control_init(&a, regions, 1, 1);
@@ -209,7 +215,7 @@ static void check_event_suffix(int start, const int *expected, int count)
 /* Explicit/implicit endings observe once; unregister cancels an unfinished sample. */
 static void check_step_samples(int report)
 {
-  region_info regions[] = {{NULL, -1, 1, NULL, 0, 0}};
+  region_info regions[] = {REGION_INFO(0, -1, 1, 0)};
   region_control control;
   step_samples samples = {0};
   const region_control_callbacks callbacks = {
@@ -279,5 +285,5 @@ int main(void)
   check_contexts();
   check_step_samples(0);
   check_step_samples(1);
-  puts("region_control=PASS (hooks, callbacks, region/step samples, master, nowait, names, contexts, total-only)");
+  puts("region_control=PASS (hooks, callbacks, region/step samples, master, nowait, compile-time metadata, contexts, total-only)");
 }

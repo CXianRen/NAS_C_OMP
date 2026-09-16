@@ -3,7 +3,7 @@
 
 #include "../../../framework/region_control/region_control.h"
 
-/* Stable IDs; names are captured at each manual start hook. */
+/* Stable IDs; hook names and lines are resolved into sp_regions at build time. */
 enum {
   SP_P_ADD,
   SP_P_ERROR_NORM,

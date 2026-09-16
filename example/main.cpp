@@ -1,5 +1,6 @@
 #include "../framework/tuner/tuner.h"
 #include "../framework/region_control/region_control.h"
+#include "region_metadata.h"
 
 #include <cassert>
 #include <cstdio>
@@ -16,8 +17,8 @@ static void trace(int step, int region) {
 int main() {
   constexpr int count = 32768;
   std::vector<double> a(count, 1), b(count);
-  static region_info regions[] = {{nullptr, -1, 1, nullptr, 0, 0},
-                                        {nullptr, -1, 1, nullptr, 0, 0}};
+  static region_info regions[] = {REGION_INFO(0, -1, 1, 0),
+                                  REGION_INFO(1, -1, 1, 0)};
   region_control control;
   region_control_init(&control, regions, 2, REGION_INSTRUMENT);
   tuner *runtime = tuner_attach(&control);

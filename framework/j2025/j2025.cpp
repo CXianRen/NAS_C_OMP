@@ -153,7 +153,7 @@ void j2025_destroy(j2025 *tuner, const region_info *regions) {
   for (std::size_t id = 0; regions && id < tuner->regions.size(); ++id) {
     const auto &cfg = tuner->regions[id].cfg;
     if (!cfg.thread_number) continue;
-    // 与计时报告共用首次 START 捕获的函数名和行号。
+    // 与计时报告共用编译期生成的函数名和行号。
     std::printf("J2025 final region=%s", regions[id].name);
     if (regions[id].line) std::printf(":%d", regions[id].line);
     // mask 只显示冷启动线程上限的宽度，最右侧为 CPU 0。

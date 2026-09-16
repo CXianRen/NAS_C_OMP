@@ -11,19 +11,18 @@ HOOK = re.compile(r'\b(PARALLEL|FOR)_(START|END)\(\s*&sp_control\s*,\s*(SP_[PF]_
 FUNCTION = re.compile(r'^\s*(?:void|int|double)\s+(\w+)\s*\([^;{}]*\)\s*\{', re.MULTILINE)
 
 
-# Read only the small hand-written SP table; no source generator or manifest exists.
+# Check manual structure independently of the generated name/file/line initializers.
 def check_sources(directory=ROOT / 'SP/src'):
     ids = re.findall(r'\b(SP_[PF]_\w+)\s*,', (directory / 'sp_regions.h').read_text())
-    entries = re.findall(r'\[(SP_[PF]_\w+)\]\s*=\s*\{([^}]*)\}',
-                         (directory / 'sp_regions.c').read_text())
-    assert [key for key, _ in entries] == ids
+    entries = re.findall(
+        r'\[(SP_[PF]_\w+)\]\s*=\s*REGION_INFO\(\s*(SP_[PF]_\w+)\s*,\s*(-?\w+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)',
+        (directory / 'sp_regions.c').read_text())
+    assert [entry[0] for entry in entries] == ids
     table = {}
-    for key, initializer in entries:
-        fields = dict(re.findall(r'\.(\w+)\s*=\s*(-?\w+)', initializer))
-        parent = fields['parent']
+    for key, metadata_id, parent, combined, nowait in entries:
+        assert key == metadata_id, (key, metadata_id)
         table[key] = {'parent': None if parent == '-1' else parent,
-                      'combined': int(fields.get('combined', '0')),
-                      'nowait': int(fields.get('nowait', '0'))}
+                      'combined': int(combined), 'nowait': int(nowait)}
     for path in directory.glob('*.c'):
         source = path.read_text()
         functions = list(FUNCTION.finditer(source))
@@ -52,7 +51,7 @@ def check_sources(directory=ROOT / 'SP/src'):
     return table
 
 
-# Verify captured labels, static parents, shared combined samples and percentages.
+# Verify compiled labels, static parents, shared combined samples and percentages.
 def check_report(path, table):
     result = parse_log(path)
     text = path.read_text()
@@ -104,7 +103,7 @@ def main():
     if args.path:
         path = args.path / 'SP.log' if args.path.is_dir() else args.path
         result = check_report(path, table)
-        print(f"PASS SP: {len(result['rows'])} rows; captured labels, parents, combined equality, percentages")
+        print(f"PASS SP: {len(result['rows'])} rows; compiled labels, parents, combined equality, percentages")
 
 
 if __name__ == '__main__':

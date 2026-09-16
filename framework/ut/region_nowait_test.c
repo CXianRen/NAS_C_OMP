@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "../region_control/region_control.h"
+#include "region_metadata.h"
 #include <assert.h>
 #include <omp.h>
 #include <sched.h>
@@ -10,15 +11,15 @@
 enum { P_TAIL, F_TAIL, P_NEXT, F_NEXT, F_ORDINARY,
        P_SYNC, F_HELPER, P_CONDITIONAL, F_CONDITIONAL, REGION_COUNT };
 static region_info regions[REGION_COUNT] = {
-  [P_TAIL] = {.parent = -1},
-  [F_TAIL] = {.parent = P_TAIL, .nowait = 1},
-  [P_NEXT] = {.parent = -1},
-  [F_NEXT] = {.parent = P_NEXT, .nowait = 1},
-  [F_ORDINARY] = {.parent = P_NEXT},
-  [P_SYNC] = {.parent = -1},
-  [F_HELPER] = {.parent = P_SYNC, .nowait = 1},
-  [P_CONDITIONAL] = {.parent = -1},
-  [F_CONDITIONAL] = {.parent = P_CONDITIONAL, .nowait = 1}
+  [P_TAIL] = REGION_INFO(P_TAIL, -1, 0, 0),
+  [F_TAIL] = REGION_INFO(F_TAIL, P_TAIL, 0, 1),
+  [P_NEXT] = REGION_INFO(P_NEXT, -1, 0, 0),
+  [F_NEXT] = REGION_INFO(F_NEXT, P_NEXT, 0, 1),
+  [F_ORDINARY] = REGION_INFO(F_ORDINARY, P_NEXT, 0, 0),
+  [P_SYNC] = REGION_INFO(P_SYNC, -1, 0, 0),
+  [F_HELPER] = REGION_INFO(F_HELPER, P_SYNC, 0, 1),
+  [P_CONDITIONAL] = REGION_INFO(P_CONDITIONAL, -1, 0, 0),
+  [F_CONDITIONAL] = REGION_INFO(F_CONDITIONAL, P_CONDITIONAL, 0, 1)
 };
 static region_control control;
 static atomic_int released, phase;
@@ -124,6 +125,8 @@ int main(int argc, char **argv) {
   omp_set_dynamic(0);
   omp_set_num_threads(2);
   region_control_init(&control, regions, REGION_COUNT, report);
+  for (int id = 0; id < REGION_COUNT; ++id)
+    assert(control.regions[id].name && control.regions[id].file && control.regions[id].line > 0);
   iteration_start(&control);
   tail();
   tail();

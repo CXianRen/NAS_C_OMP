@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Instrument C OpenMP parallel/for regions using Clang's JSON AST.
+"""Instrument C/C++ OpenMP parallel/for regions using Clang's JSON AST.
 
 Sources are never overwritten. Pass the same -I/-D options as the real build
 after --. Application-specific npb_time_begin/end/report calls remain explicit.
+C++ region sites must be in translation-unit free functions.
 """
 import argparse
 from collections import defaultdict
@@ -20,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 GENERATOR = 'npb-instrument-regions-v1'
 KINDS = {"OMPParallelDirective": "parallel", "OMPParallelForDirective": "combined",
          "OMPForDirective": "for"}
+SOURCE_SUFFIXES = {'.c', '.cc', '.cpp', '.cxx', '.C'}
 PAIRS = re.compile(r"^[ \t]*NPB_(?:PARALLEL_FOR|PARALLEL|FOR)_(?:BEGIN\([^\n]*\)|END\(\))[ \t]*$",
                    re.MULTILINE)
 
@@ -117,6 +119,11 @@ def analyze(path, source, ast):
     barriers = []
     visited = set()
 
+    def has_openmp(node):
+        kind = node.get("kind", "")
+        return ((kind.startswith("OMP") and ("Parallel" in kind or "For" in kind)) or
+                any(has_openmp(child) for child in node.get("inner", [])))
+
     def walk(node, function, compound=None, direct=False):
         identity = node.get("id")
         if identity and identity in visited:
@@ -125,6 +132,8 @@ def analyze(path, source, ast):
             visited.add(identity)
         kind = node.get("kind", "")
         children = node.get("inner", [])
+        if kind in ("LambdaExpr", "CXXRecordDecl", "FunctionTemplateDecl") and has_openmp(node):
+            raise ValueError(f"{path}: C++ OpenMP sites must be in translation-unit free functions")
         if kind == "CompoundStmt" and "offset" in node["range"]["end"]:
             compound = offset(node["range"]["end"])
             bodies[compound] = children
@@ -163,7 +172,11 @@ def analyze(path, source, ast):
             walk(child, function, compound, kind == "CompoundStmt")
 
     for node in ast.get("inner", []):
-        if node.get("kind") != "FunctionDecl" or node.get("loc", {}).get("includedFrom"):
+        if node.get("loc", {}).get("includedFrom"):
+            continue
+        if node.get("kind") != "FunctionDecl":
+            if has_openmp(node):
+                raise ValueError(f"{path}: C++ OpenMP sites must be in translation-unit free functions")
             continue
         body = next((item for item in node.get("inner", []) if item.get("kind") == "CompoundStmt"), None)
         if body is not None:
@@ -311,8 +324,8 @@ def main():
     try:
         for path in args.sources:
             path = path.resolve()
-            if path.suffix != '.c':
-                raise ValueError(f'{path}: only C source files are supported')
+            if path.suffix not in SOURCE_SUFFIXES:
+                raise ValueError(f'{path}: expected a C/C++ source file (.c, .cc, .cpp, .cxx, .C)')
             if path.name == 'npb_generated_regions.c':
                 raise ValueError('npb_generated_regions.c is reserved for the generated table')
             if path.name in {p.name for p in sources}:

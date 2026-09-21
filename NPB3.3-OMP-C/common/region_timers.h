@@ -13,6 +13,10 @@ typedef struct {
   const char *name;
   int parent, combined;
 } npb_region_info;
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern const npb_region_info npb_regions[];
 extern const int npb_region_count;
 extern int npb_time_active;
@@ -27,6 +31,10 @@ void npb_time_sync(void);
 double npb_time_read(int id);
 double npb_time_total(void);
 void npb_time_report(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 /* Fixed ID; one pair for a nowait chain, ending before the ordinary for.
  * No semicolons after paired macros. Only master reads the clock.

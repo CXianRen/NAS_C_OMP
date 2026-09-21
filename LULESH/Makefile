@@ -8,7 +8,18 @@ BUILD_DIR ?= build
 LULESH_EXEC = $(BUILD_DIR)/lulesh2.0
 
 CC = clang
-CXX = clang++ -DUSE_MPI=0
+CXX = clang++
+CLANG ?= clang
+PYTHON ?= python3
+USE_MPI ?= 0
+INSTRUMENT ?= 1
+INSTRUMENT_FLAGS ?= $(CPPFLAGS) $(filter -D% -U% -I% -std=%,$(CXXFLAGS))
+NPB_DIR := ../NPB3.3-OMP-C
+COMMON_DIR := $(NPB_DIR)/common
+INSTRUMENT_TOOL := $(NPB_DIR)/tools/instrument_regions.py
+GENERATED_DIR := $(BUILD_DIR)/instrumented
+BUILD_CONFIG := $(BUILD_DIR)/build.config
+BUILD_CPPFLAGS = -DUSE_MPI=$(USE_MPI) -DNPB_REGION_TIMING=$(INSTRUMENT) $(CPPFLAGS)
 
 SOURCES2.0 = \
 	lulesh.cc \
@@ -20,6 +31,7 @@ OBJECTS2.0 = $(addprefix $(BUILD_DIR)/,$(SOURCES2.0:.cc=.o))
 
 # Default OpenMP flags
 CXXFLAGS = -g -O3 -fopenmp -I. -Wall
+CFLAGS ?= -g -O3 -fopenmp -Wall
 LDFLAGS = -g -O3 -fopenmp
 
 #Below are reasonable default flags for a serial build
@@ -40,22 +52,66 @@ LDFLAGS = -g -O3 -fopenmp
 #CXXFLAGS = -g -DVIZ_MESH -I${SILO_INCDIR} -Wall -Wno-pragmas
 #LDFLAGS = -g -L${SILO_LIBDIR} -Wl,-rpath -Wl,${SILO_LIBDIR} -lsiloh5 -lhdf5
 
+.PHONY: all check clean tar instrument-test FORCE
+
+check:
+	@case "$(INSTRUMENT)" in 0|1) ;; *) echo "INSTRUMENT must be 0 or 1"; exit 2 ;; esac
+
 $(BUILD_DIR):
 	@mkdir -p "$@"
 
-$(BUILD_DIR)/%.o: %.cc lulesh.h lulesh_tuple.h | $(BUILD_DIR)
+FORCE:
+
+$(BUILD_CONFIG): Makefile FORCE | $(BUILD_DIR)
+	@printf '%s\n' \
+		'CC = $(CC)' 'CXX = $(CXX)' 'CPPFLAGS = $(BUILD_CPPFLAGS)' \
+		'CFLAGS = $(CFLAGS)' 'CXXFLAGS = $(CXXFLAGS)' 'LDFLAGS = $(LDFLAGS)' \
+		'CLANG = $(CLANG)' 'PYTHON = $(PYTHON)' 'INSTRUMENT = $(INSTRUMENT)' \
+		'INSTRUMENT_FLAGS = $(INSTRUMENT_FLAGS)' 'SOURCES = $(SOURCES2.0)' > "$@.tmp"
+	@cmp -s "$@.tmp" "$@" && rm "$@.tmp" || mv "$@.tmp" "$@"
+
+ifeq ($(INSTRUMENT),1)
+GENERATED_FILES := $(addprefix $(GENERATED_DIR)/,$(SOURCES2.0)) \
+	$(GENERATED_DIR)/npb_generated_regions.h $(GENERATED_DIR)/npb_generated_regions.c \
+	$(GENERATED_DIR)/instrumentation.json
+OBJECTS2.0 += $(BUILD_DIR)/npb_generated_regions.o $(BUILD_DIR)/region_timers.o
+
+# One invocation publishes all generated files before any compiler starts.
+$(GENERATED_FILES) &: $(SOURCES2.0) lulesh.h lulesh_tuple.h $(COMMON_DIR)/region_timers.h $(INSTRUMENT_TOOL) $(BUILD_CONFIG) | check
+	$(PYTHON) $(INSTRUMENT_TOOL) $(SOURCES2.0) \
+		--clang "$(CLANG)" --output "$(GENERATED_DIR)" -- \
+		-DUSE_MPI=$(USE_MPI) -DNPB_REGION_TIMING=1 -I. $(INSTRUMENT_FLAGS)
+
+$(BUILD_DIR)/%.o: $(GENERATED_DIR)/%.cc $(GENERATED_DIR)/npb_generated_regions.h $(BUILD_CONFIG) | check
 	@echo "Building $<"
-	$(CXX) -c $(CXXFLAGS) -o $@ $<
+	$(CXX) $(BUILD_CPPFLAGS) $(CXXFLAGS) -I"$(COMMON_DIR)" -c -o "$@" "$<"
 
-all: $(LULESH_EXEC)
+$(BUILD_DIR)/npb_generated_regions.o: $(GENERATED_DIR)/npb_generated_regions.c $(GENERATED_DIR)/npb_generated_regions.h $(BUILD_CONFIG) | check
+	$(CC) $(BUILD_CPPFLAGS) $(CFLAGS) -I"$(COMMON_DIR)" -c -o "$@" "$<"
 
-$(LULESH_EXEC): $(OBJECTS2.0) | $(BUILD_DIR)
+$(BUILD_DIR)/region_timers.o: $(COMMON_DIR)/region_timers.c $(COMMON_DIR)/region_timers.h $(BUILD_CONFIG) | check
+	$(CC) $(BUILD_CPPFLAGS) $(CFLAGS) -c -o "$@" "$<"
+else
+$(BUILD_DIR)/%.o: %.cc lulesh.h lulesh_tuple.h $(BUILD_CONFIG) | check
+	@echo "Building $<"
+	$(CXX) $(BUILD_CPPFLAGS) $(CXXFLAGS) -c -o "$@" "$<"
+endif
+
+all: check $(LULESH_EXEC)
+
+$(LULESH_EXEC): $(OBJECTS2.0) $(BUILD_CONFIG) | check
 	@echo "Linking"
 	$(CXX) $(OBJECTS2.0) $(LDFLAGS) -lm -o $@
 
 clean:
-	$(RM) $(OBJECTS2.0) $(LULESH_EXEC)
+	$(RM) $(addprefix $(BUILD_DIR)/,$(SOURCES2.0:.cc=.o)) \
+		$(BUILD_DIR)/npb_generated_regions.o $(BUILD_DIR)/region_timers.o \
+		$(LULESH_EXEC) $(BUILD_CONFIG) $(BUILD_CONFIG).tmp
+	rm -rf "$(GENERATED_DIR)"
 	@rmdir "$(BUILD_DIR)" 2>/dev/null || true
+
+instrument-test:
+	$(PYTHON) tests/test_automatic_build.py --cc "$(CC)" --cxx "$(CXX)" --clang "$(CLANG)"
 
 tar: clean
 	cd .. ; tar cvf lulesh-2.0.tar LULESH-2.0 ; mv lulesh-2.0.tar LULESH-2.0

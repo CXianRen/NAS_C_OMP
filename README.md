@@ -171,7 +171,7 @@ ranges. `#line` preserves source diagnostics and `__LINE__`. Source, header,
 script and build-configuration changes trigger regeneration before compilation.
 An unchanged build reuses its output. `make clean` removes generated files.
 
-The standalone script remains available for other C programs:
+The standalone script remains available for other C/C++ programs:
 
 ```sh
 python3 NPB3.3-OMP-C/tools/instrument_regions.py app.c helper.c \
@@ -183,7 +183,9 @@ one invocation. Application-specific `npb_time_begin/end/report` markers define
 which iterations are measured; the parser does not guess the application's
 notion of a time step.
 
-Literal C `parallel`, `parallel for`, and `for` constructs are supported.
+Literal `parallel`, `parallel for`, and `for` constructs in C/C++ translation-unit
+free functions are supported (`.c`, `.cc`, `.cpp`, `.cxx`, and `.C` sources).
+C++ OpenMP sites in namespaces, class methods, templates, or lambdas are rejected.
 Nested parallel regions, ambiguous orphaned-loop parents, macro-generated
 OpenMP directives and unsupported combined constructs are rejected. Syntax
 validation completes before output is published. All ten NAS benchmarks use
@@ -192,6 +194,39 @@ hooks. This source preprocessor is independent of OMPT.
 
 [Automatic instrumentation validation](reports/automatic_instrumentation/README.md)
 contains the Class S correctness and report checks.
+
+## LULESH automatic instrumentation
+
+LULESH uses the same Python generator and C timing module as NAS. GNU Make 4.3+
+generates C++ source copies, `npb_generated_regions.{h,c}` and
+`instrumentation.json` under `LULESH/build/instrumented/` before compiling:
+
+```sh
+make -C LULESH -j
+NPB_TIME_REPORT=1 OMP_NUM_THREADS=4 ./LULESH/build/lulesh2.0 -s 8 -i 16
+make -C LULESH instrument-test
+```
+
+The default is `INSTRUMENT=1`, using Clang and non-MPI OpenMP (`USE_MPI=0`).
+The generated table and shared timer module are compiled as C and linked with
+the C++ application. Only explicit timestep-window markers remain in the
+original source. Each measured step covers `TimeIncrement` and
+`LagrangeLeapFrog`, excluding initialization, progress output, visualization,
+and verification. Report rows and nowait timing follow the NAS rules above;
+LULESH's existing elapsed-time/FOM output keeps its original timing boundary.
+
+`NPB_TIME_REPORT` enables the report at runtime, including with LULESH's `-q`.
+To compile the original sources with no region hooks or timer objects:
+
+```sh
+make -C LULESH -j INSTRUMENT=0 BUILD_DIR=build/plain
+```
+
+Switching `INSTRUMENT` or compiler/parser flags in the same `BUILD_DIR` rebuilds
+the binary. Source, header and generator changes regenerate instrumented copies;
+an unchanged build reuses its outputs. `CPPFLAGS` reaches parsing and compilation,
+and `-D`, `-U`, `-I`, and `-std=` options in `CXXFLAGS` also reach the parser.
+`INSTRUMENT_FLAGS`, `CLANG`, and `PYTHON` can be overridden as for NAS.
 
 [1]: www.nas.nasa.gov/publications/npb.html
 

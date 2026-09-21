@@ -159,6 +159,10 @@ Additional BSD Notice
 
 #include "lulesh.h"
 
+#if NPB_REGION_TIMING
+#include "region_timers.h"
+#endif
+
 /* Work Routines */
 
 static inline
@@ -2742,8 +2746,14 @@ int main(int argc, char *argv[])
 //      std::cout << "region" << i + 1<< "size" << locDom->regElemSize(i) <<std::endl;
    while((locDom->time() < locDom->stoptime()) && (locDom->cycle() < opts.its)) {
 
+#if NPB_REGION_TIMING
+      npb_time_begin();
+#endif
       TimeIncrement(*locDom) ;
       LagrangeLeapFrog(*locDom) ;
+#if NPB_REGION_TIMING
+      npb_time_end();
+#endif
 
       if ((opts.showProg != 0) && (opts.quiet == 0) && (myRank == 0)) {
          std::cout << "cycle = " << locDom->cycle()       << ", "
@@ -2779,6 +2789,10 @@ int main(int argc, char *argv[])
    if ((myRank == 0) && (opts.quiet == 0)) {
       VerifyAndWriteFinalOutput(elapsed_timeG, *locDom, opts.nx, numRanks);
    }
+
+#if NPB_REGION_TIMING
+   if (myRank == 0) npb_time_report();
+#endif
 
    delete locDom; 
 

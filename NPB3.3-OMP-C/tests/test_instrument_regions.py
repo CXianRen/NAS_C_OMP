@@ -142,6 +142,22 @@ with tempfile.TemporaryDirectory(prefix='npb-instrument-test-') as directory:
         assert result.returncode and message in result.stderr, result.stderr
         assert not target.exists(), target
 
+    # C++ scopes that are not analyzed must fail instead of silently omitting
+    # their OpenMP sites from an otherwise successful generated build.
+    bad = directory / 'bad.cc'
+    body = '\n#pragma omp parallel for\nfor(int i=0;i<4;i++) {}\n'
+    for source in (
+        'namespace example { void f() {' + body + '} }',
+        'struct Example { void f() {' + body + '} };',
+        'template<class T> void f() {' + body + '}',
+        'void f() { auto work = []() {' + body + '}; work(); }',
+    ):
+        bad.write_text(source)
+        result = subprocess.run([sys.executable, str(tool), str(bad), '--output', str(target),
+                                 '--clang', args.clang], capture_output=True, text=True)
+        assert result.returncode and 'translation-unit free functions' in result.stderr, result.stderr
+        assert not target.exists(), target
+
 print('PASS: generated code executes with correct results; UTF-8, multiline pragmas,')
 print('      unbraced control flow, source line preservation, orphaned for parents,')
 print('      nowait grouping, declaration scope, combined equality, deterministic output,')

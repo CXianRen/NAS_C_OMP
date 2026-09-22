@@ -288,23 +288,76 @@ void second(void) {
 
     def test_unsupported_constructs_fail_without_partial_outputs(self):
         cases = {
-            'conditional-nowait': '''void work(int run) {
+            'conditional-barrier': """void work(int run) {
 #pragma omp parallel
 {
-if (run) {
 #pragma omp for nowait
 for (int i=0;i<8;++i) { }
+if (run) {
+#pragma omp barrier
 }
 }
-}''',
-            'helper-nowait': '''void helper(void) {
+}""",
+            'multiple-helper-ends': """void helper(void) {
 #pragma omp for nowait
 for (int i=0;i<8;++i) { }
 }
 void work(void) {
 #pragma omp parallel
-{ helper(); }
-}''',
+{
+helper();
+#pragma omp barrier
+helper();
+}
+}""",
+            'helper-conditional-return': """void helper(int skip) {
+#pragma omp for nowait
+for (int i=0;i<8;++i) { }
+if (skip) return;
+#pragma omp for
+for (int i=0;i<8;++i) { }
+}
+void work(int skip) {
+#pragma omp parallel
+{
+helper(skip);
+}
+}""",
+            'barrier-helper-in-condition': """int sync_helper(void) {
+#pragma omp barrier
+return 1;
+}
+void work(void) {
+#pragma omp parallel
+{
+#pragma omp for nowait
+for (int i=0;i<8;++i) { }
+if (sync_helper()) { }
+}
+}""",
+            'barrier-helper-in-call-argument': """int sync_helper(void) {
+#pragma omp barrier
+return 0;
+}
+void sink(int value) { (void)value; }
+void work(void) {
+#pragma omp parallel
+{
+#pragma omp for nowait
+for (int i=0;i<8;++i) { }
+sink(sync_helper());
+}
+}""",
+            'loop-backedge-barrier': """void work(void) {
+#pragma omp parallel
+{
+for (int k=0;k<2;++k) {
+#pragma omp barrier
+#pragma omp for nowait
+for (int i=0;i<8;++i) { }
+}
+}
+}""",
             'nested-parallel': '''void work(void) {
 #pragma omp parallel
 {
@@ -322,6 +375,154 @@ void work(void) { PARALLEL { } }''',
                 message = self.generate([source], success=False)
                 self.assertRegex(message, r'(?i)(unsupported|cannot|nowait|macro|nested)')
                 self.assertFalse(self.output.exists())
+
+    def test_repeated_barrier_helper_closes_only_started_group(self):
+        source = self.source('barrier_helper.c', r'''#include "region_auto.h"
+#include <assert.h>
+#include <omp.h>
+static region_control control;
+double __wrap_omp_get_wtime(void) {
+  static int ticks;
+  assert(omp_get_thread_num() == 0);
+  return ++ticks;
+}
+static void sync_team(void) {
+#pragma omp barrier
+}
+static void run(void) {
+#pragma omp parallel
+{
+  sync_team(); /* No group has started at this shared END site yet. */
+#pragma omp for nowait
+  for (int i=0; i<4; ++i) { }
+  sync_team(); /* The group's single logical second ends here. */
+  sync_team(); /* Re-entering the END must not charge the group again. */
+}
+}
+int main(void) {
+  omp_set_dynamic(0);
+  omp_set_num_threads(2);
+  region_control_init(&control, region_auto_info, REGION_AUTO_COUNT);
+  run(); /* The guard must also reset during an unmeasured invocation. */
+  iteration_start(&control);
+  run(); run();
+  iteration_end(&control);
+  int children = 0;
+  for (int id=0; id<REGION_AUTO_COUNT; ++id) {
+    assert(region_auto_started[id] == 0);
+    if (region_auto_info[id].parent != -1) {
+      ++children;
+      assert(control.elapsed[id] == (REGION_INSTRUMENT && control.enabled ? 2.0 : 0.0));
+    }
+  }
+  assert(children == 1);
+}
+''')
+        manifest = self.generate([source])
+        group = next(r for r in manifest['regions'] if r['kind'] == 'for')
+        self.assertTrue(group['guarded'])
+        self.assertEqual(group['timing_end'], 'explicit_barrier')
+        self.assertEqual(group['end_file'], str(source))
+        self.assertLess(group['end_line'], group['line'])
+        for instrument in (1, 0):
+            binary = self.compile([self.output / source.name], instrument,
+                                  ['-Wl,--wrap=omp_get_wtime'])
+            for report in ('0', '1'):
+                process = subprocess.run([str(binary)], capture_output=True, text=True,
+                    env=dict(os.environ, OMP_THREAD_LIMIT='2', OMP_PROC_BIND='false',
+                             REGION_TIME_REPORT=report), timeout=15)
+                self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
+
+    def test_conditional_and_cross_file_static_groups(self):
+        common = self.source('shared.h', """#include "region_control.h"
+#include "region_auto.h"
+#include <omp.h>
+#include <stdatomic.h>
+extern region_control control;
+extern atomic_int phase;
+void helper(void);
+""")
+        helper = self.source('helper.c', '#include "shared.h"\n' + """void helper(void) {
+#pragma omp for nowait
+for (int i=0;i<2;++i) atomic_fetch_add(&phase, 1);
+#pragma omp for nowait
+for (int i=0;i<2;++i) atomic_fetch_add(&phase, 1);
+}
+""")
+        main = self.source('main.c', '#include "shared.h"\n' + r'''#include <assert.h>
+#include <string.h>
+region_control control;
+atomic_int phase;
+static int ticks;
+double __wrap_omp_get_wtime(void) {
+  assert(omp_get_thread_num() == 0);
+  return atomic_load(&phase) + 0.001 * ++ticks;
+}
+static void branches(int a, int b) {
+#pragma omp parallel
+{
+  if (a) {
+#pragma omp for nowait
+    for(int i=0;i<2;++i) atomic_fetch_add(&phase, 1);
+  }
+  if (b) {
+#pragma omp for nowait
+    for(int i=0;i<2;++i) atomic_fetch_add(&phase, 1);
+  }
+}
+}
+static void caller(int repetitions) {
+#pragma omp parallel
+{
+  for (int repeat=0; repeat<repetitions; ++repeat) {
+    helper();
+  }
+#pragma omp barrier
+#pragma omp master
+  atomic_fetch_add(&phase, 100);
+}
+}
+int main(void) {
+  omp_set_dynamic(0);
+  omp_set_num_threads(2);
+  region_control_init(&control, region_auto_info, REGION_AUTO_COUNT);
+  iteration_start(&control);
+  branches(0,0);
+  caller(0);
+  for(int id=0;id<REGION_AUTO_COUNT;++id)
+    if (region_auto_info[id].parent != -1) assert(control.elapsed[id] == 0);
+  branches(0,1); branches(1,0); branches(1,1);
+  caller(3); caller(2);
+  iteration_end(&control);
+  assert(atomic_load(&phase) == 328);
+  for(int id=0;id<REGION_AUTO_COUNT;++id) {
+    if (region_auto_info[id].parent == -1) continue;
+    assert(region_auto_started[id] == 0);
+    if (REGION_INSTRUMENT && control.enabled) {
+      assert(control.elapsed[id] > 0);
+      // Excludes the +100 following each explicit barrier. Repeated helper
+      // calls must not restart the group's clock or produce overlapping rows.
+      assert(control.elapsed[id] < 30);
+    } else assert(control.elapsed[id] == 0);
+  }
+}
+''')
+        manifest = self.generate([main, helper], flags=['-I', str(self.directory)])
+        groups = [r for r in manifest['regions'] if r['kind'] == 'for']
+        self.assertEqual(len(groups), 2)
+        self.assertTrue(all(r['guarded'] and len(r['loop_sites']) == 2 for r in groups))
+        cross = next(r for r in groups if r['function'] == 'helper')
+        self.assertEqual(cross['timing_end'], 'explicit_barrier')
+        self.assertEqual(cross['end_file'], str(main))
+        self.assertIn(str(common).replace(' ', '\\ '), self.depfile.read_text())
+        for instrument in (1, 0):
+            binary = self.compile([self.output / main.name, self.output / helper.name],
+                                  instrument, ['-Wl,--wrap=omp_get_wtime'])
+            for report in ('0', '1'):
+                process = subprocess.run([str(binary)], capture_output=True, text=True,
+                    env=dict(os.environ, OMP_THREAD_LIMIT='2', OMP_PROC_BIND='false',
+                             REGION_TIME_REPORT=report), timeout=15)
+                self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
 
     def test_cpp_combined_and_template_metadata(self):
         source = self.source('template.cpp', r'''#include "region_control.h"

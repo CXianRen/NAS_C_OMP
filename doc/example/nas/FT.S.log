@@ -1,0 +1,75 @@
+# benchmark: NAS FT, Class S, default parameters/iterations
+# utc: 2026-09-22T20:42:41+00:00
+# source_branch: J-2025_otter (current working tree)
+# toolchain: Ubuntu clang version 18.1.3 (1ubuntu1)
+# build_command (repository root): make -C NPB3.3-OMP-C -j4 CLASS=S CC=clang-18 CXX=clang++-18 CLANG=clang-18 INSTRUMENT=1
+# environment: OMP_NUM_THREADS=4 OMP_DYNAMIC=false OMP_PROC_BIND=false TUNER=none REGION_TIME_REPORT=1
+# inherited OMP_*, KMP_*, GOMP_*, OTTER_*, NPB_* and OFFLINE_CONFIG were cleared before applying the environment above
+# working_directory: /tmp/nas-example-logs-xvn5tyef/FT (fresh temporary directory)
+# run_command: env OMP_NUM_THREADS=4 OMP_DYNAMIC=false OMP_PROC_BIND=false TUNER=none REGION_TIME_REPORT=1 /home/chenhon/topics/topic_phams/code/benchmark/NPB3.3-OMP-C/bin/FT.S
+# output: stdout and stderr combined, unedited
+
+
+ NAS Parallel Benchmarks (NPB3.3-OMP-C) - FT Benchmark
+
+ Size                :   64x  64x  64
+ Iterations                  :      6
+ Number of available threads :      4
+
+ T =    1     Checksum =    5.546087004964E+02    4.845363331978E+02
+ T =    2     Checksum =    5.546385409190E+02    4.865304269511E+02
+ T =    3     Checksum =    5.546148406171E+02    4.883910722337E+02
+ T =    4     Checksum =    5.545423607415E+02    4.901273169046E+02
+ T =    5     Checksum =    5.544255039624E+02    4.917475857993E+02
+ T =    6     Checksum =    5.542683411903E+02    4.932597244941E+02
+ Result verification successful
+ class = S
+
+
+ FT Benchmark Completed.
+ Class           =                        S
+ Size            =             64x  64x  64
+ Iterations      =                        6
+ Time in seconds =                     0.01
+ Total threads   =                        4
+ Avail threads   =                        4
+ Mop/s total     =                 12491.67
+ Mop/s/thread    =                  3122.92
+ Operation type  =           floating point
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              22 Sep 2026
+
+ Compile options:
+    CC           = clang-18
+    CLINK        = clang-18
+    C_LIB        = -lm
+    C_INC        = (none)
+    CFLAGS       = -O3 -fopenmp -mcmodel=medium -mlarge-data-t...
+    CLINKFLAGS   = -fopenmp -mcmodel=medium -mlarge-data-thres...
+    RAND         = randdp
+
+--------------------------------------
+ Please send all errors/feedbacks to:
+ Center for Manycore Programming
+ cmp@aces.snu.ac.kr
+ http://aces.snu.ac.kr
+--------------------------------------
+
+
+time report
+unit: seconds
+iteration total: 0.014182806 s
+step %: accumulated region time / iteration total (average time-step basis)
+parallel region evolve:208  0.001339674 s  step: 9.446%
+    for region evolve:208  0.001339674 s  step: 9.446%
+parallel region cffts1:418  0.004061937 s  step: 28.640%
+    for region cffts1:418  0.004061937 s  step: 28.640%
+parallel region cffts2:449  0.003730774 s  step: 26.305%
+    for region cffts2:449  0.003730774 s  step: 26.305%
+parallel region cffts3:480  0.004930258 s  step: 34.762%
+    for region cffts3:480  0.004930258 s  step: 34.762%
+parallel region checksum:642  0.000079870 s  step: 0.563%
+    for region checksum:646 (nowait)  0.000066996 s  step: 0.472%
+
+# exit_code: 0

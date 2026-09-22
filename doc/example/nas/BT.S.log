@@ -1,0 +1,91 @@
+# benchmark: NAS BT, Class S, default parameters/iterations
+# utc: 2026-09-22T20:42:41+00:00
+# source_branch: J-2025_otter (current working tree)
+# toolchain: Ubuntu clang version 18.1.3 (1ubuntu1)
+# build_command (repository root): make -C NPB3.3-OMP-C -j4 CLASS=S CC=clang-18 CXX=clang++-18 CLANG=clang-18 INSTRUMENT=1
+# environment: OMP_NUM_THREADS=4 OMP_DYNAMIC=false OMP_PROC_BIND=false TUNER=none REGION_TIME_REPORT=1
+# inherited OMP_*, KMP_*, GOMP_*, OTTER_*, NPB_* and OFFLINE_CONFIG were cleared before applying the environment above
+# working_directory: /tmp/nas-example-logs-xvn5tyef/BT (fresh temporary directory)
+# run_command: env OMP_NUM_THREADS=4 OMP_DYNAMIC=false OMP_PROC_BIND=false TUNER=none REGION_TIME_REPORT=1 /home/chenhon/topics/topic_phams/code/benchmark/NPB3.3-OMP-C/bin/BT.S
+# output: stdout and stderr combined, unedited
+
+
+ NAS Parallel Benchmarks (NPB3.3-OMP-C) - BT Benchmark
+
+ No input file inputbt.data. Using compiled defaults
+ Size:   12x  12x  12
+ Iterations:   60       dt:   0.0100000
+ Number of available threads:     4
+
+ Time step    1
+ Time step   20
+ Time step   40
+ Time step   60
+ Verification being performed for class S
+ accuracy setting for epsilon =  1.0000000000000E-08
+ Comparison of RMS-norms of residual
+           1 1.7034283709540E-01 1.7034283709541E-01 7.1856316679969E-14
+           2 1.2975252070029E-02 1.2975252070034E-02 3.6806173040703E-13
+           3 3.2527926989482E-02 3.2527926989486E-02 1.2777935248637E-13
+           4 2.6436421275145E-02 2.6436421275167E-02 8.0789737816325E-13
+           5 1.9211784131747E-01 1.9211784131744E-01 1.3522543558722E-13
+ Comparison of RMS-norms of solution error
+           1 4.9976913345802E-04 4.9976913345812E-04 1.9589736464516E-13
+           2 4.5195666782973E-05 4.5195666782962E-05 2.4153998383599E-13
+           3 7.3973765172966E-05 7.3973765172921E-05 6.0678228066361E-13
+           4 7.3821238632378E-05 7.3821238632440E-05 8.3788534419304E-13
+           5 8.9269630987488E-04 8.9269630987491E-04 3.5221231066235E-14
+ Verification Successful
+
+
+ BT Benchmark Completed.
+ Class           =                        S
+ Size            =             12x  12x  12
+ Iterations      =                       60
+ Time in seconds =                     0.04
+ Total threads   =                        4
+ Avail threads   =                        4
+ Mop/s total     =                  5193.77
+ Mop/s/thread    =                  1298.44
+ Operation type  =           floating point
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              22 Sep 2026
+
+ Compile options:
+    CC           = clang-18
+    CLINK        = clang-18
+    C_LIB        = -lm
+    C_INC        = (none)
+    CFLAGS       = -O3 -fopenmp -mcmodel=medium -mlarge-data-t...
+    CLINKFLAGS   = -fopenmp -mcmodel=medium -mlarge-data-thres...
+    RAND         = (none)
+
+--------------------------------------
+ Please send all errors/feedbacks to:
+ Center for Manycore Programming
+ cmp@aces.snu.ac.kr
+ http://aces.snu.ac.kr
+--------------------------------------
+
+
+time report
+unit: seconds
+iteration total: 0.043959141 s
+step %: accumulated region time / iteration total (average time-step basis)
+parallel region add:44  0.000790834 s  step: 1.799%
+    for region add:44  0.000790834 s  step: 1.799%
+parallel region compute_rhs:42  0.005109787 s  step: 11.624%
+    for region compute_rhs:49 (nowait)  0.001165390 s  step: 2.651%
+    for region compute_rhs:86 (nowait)  0.001912355 s  step: 4.350%
+    for region compute_rhs:295  0.000741005 s  step: 1.686%
+    for region compute_rhs:352 (nowait)  0.001018047 s  step: 2.316%
+    for region compute_rhs:413 (nowait)  0.000218630 s  step: 0.497%
+parallel region x_solve:69  0.012761831 s  step: 29.031%
+    for region x_solve:69  0.012761831 s  step: 29.031%
+parallel region y_solve:68  0.012531996 s  step: 28.508%
+    for region y_solve:68  0.012531996 s  step: 28.508%
+parallel region z_solve:68  0.012729883 s  step: 28.958%
+    for region z_solve:68  0.012729883 s  step: 28.958%
+
+# exit_code: 0

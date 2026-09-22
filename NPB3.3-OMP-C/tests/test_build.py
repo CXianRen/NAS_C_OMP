@@ -51,7 +51,7 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
 ''' + anchor))
 
     binary = directory / 'bin/SP.S'
-    command = ['make', '-f', str(root / 'Makefile'), 'CLASS=S',
+    command = ['make', '-f', str(root / 'Makefile'), 'CLASS=S', 'BENCHMARKS=SP',
                '-j2', f'CC={args.cc}', f'NPB_DIR={source}',
                f'BUILD_DIR={directory}/build', f'BIN_DIR={directory}/bin',
                f'CLANG={args.clang}']
@@ -76,6 +76,7 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
                                  capture_output=True, text=True)
         assert process.returncode == 0, process.stdout + process.stderr
         assert metadata.exists(), process.stdout + process.stderr
+        return process.stdout + process.stderr
 
     generated = directory / 'build/SP.S/generated'
     metadata = generated / 'instrumentation.json'
@@ -181,8 +182,8 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
     assert rhs_groups[-1]['timing_end'] == 'parallel_join'
     assert 'time report' in run_sp(0)
     before = binary.stat().st_mtime_ns
-    make()
-    assert before == binary.stat().st_mtime_ns, 'unchanged build compiled again'
+    build_output = make()
+    assert before == binary.stat().st_mtime_ns, 'unchanged build compiled again:\n' + build_output
     print('PASS: automatic SP.S build, shared metadata, merged nowait groups, numerical verification and build reuse', flush=True)
 
     flags = '-DTEST_BUILD_BRANCH'

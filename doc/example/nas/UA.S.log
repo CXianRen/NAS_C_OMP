@@ -1,0 +1,183 @@
+# benchmark: NAS UA, Class S, default parameters/iterations
+# utc: 2026-09-22T20:42:41+00:00
+# source_branch: J-2025_otter (current working tree)
+# toolchain: Ubuntu clang version 18.1.3 (1ubuntu1)
+# build_command (repository root): make -C NPB3.3-OMP-C -j4 CLASS=S CC=clang-18 CXX=clang++-18 CLANG=clang-18 INSTRUMENT=1
+# environment: OMP_NUM_THREADS=4 OMP_DYNAMIC=false OMP_PROC_BIND=false TUNER=none REGION_TIME_REPORT=1
+# inherited OMP_*, KMP_*, GOMP_*, OTTER_*, NPB_* and OFFLINE_CONFIG were cleared before applying the environment above
+# working_directory: /tmp/nas-example-logs-xvn5tyef/UA (fresh temporary directory)
+# run_command: env OMP_NUM_THREADS=4 OMP_DYNAMIC=false OMP_PROC_BIND=false TUNER=none REGION_TIME_REPORT=1 /home/chenhon/topics/topic_phams/code/benchmark/NPB3.3-OMP-C/bin/UA.S
+# output: stdout and stderr combined, unedited
+
+
+ NAS Parallel Benchmarks (NPB3.3-OMP-C) - UA Benchmark
+
+ No input file inputua.data. Using compiled defaults
+ Levels of refinement:               4
+ Adaptation frequency:               5
+ Time steps:                        50    dt:    2.500000E-03
+ CG iterations:                     10
+ Heat source radius:            0.0400
+ Number of available threads:        4
+
+Step    0: elements refined, merged, total:    20      0    141
+Step    5: elements refined, merged, total:     1     16    134
+Step   10: elements refined, merged, total:    16      0    246
+Step   15: elements refined, merged, total:     0     64    190
+Step   20: elements refined, merged, total:     0     80    120
+Step   25: elements refined, merged, total:    12      0    204
+Step   30: elements refined, merged, total:     0      0    204
+Step   35: elements refined, merged, total:     0     96    120
+Step   40: elements refined, merged, total:    10      0    190
+Step   45: elements refined, merged, total:     8      0    246
+
+ Verification being performed for class S
+ accuracy setting for epsilon =  1.0000000000000E-08
+ Comparison of temperature integrals
+           1.8900131109631E-03 1.8900131109620E-03 5.8259687194224E-13
+ Verification Successful
+
+
+ UA Benchmark Completed.
+ Class           =                        S
+ Size            =              4x   0x   0
+ Iterations      =                       50
+ Time in seconds =                     0.48
+ Total threads   =                        4
+ Avail threads   =                        4
+ Mop/s total     =                    25.90
+ Mop/s/thread    =                     6.48
+ Operation type  =     coll. point advanced
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              22 Sep 2026
+
+ Compile options:
+    CC           = clang-18
+    CLINK        = clang-18
+    C_LIB        = -lm
+    C_INC        = (none)
+    CFLAGS       = -O3 -fopenmp -mcmodel=medium -mlarge-data-t...
+    CLINKFLAGS   = -fopenmp -mcmodel=medium -mlarge-data-thres...
+    RAND         = (none)
+
+--------------------------------------
+ Please send all errors/feedbacks to:
+ Center for Manycore Programming
+ cmp@aces.snu.ac.kr
+ http://aces.snu.ac.kr
+--------------------------------------
+
+
+time report
+unit: seconds
+iteration total: 0.481963873 s
+step %: accumulated region time / iteration total (average time-step basis)
+parallel region adaptation:110  0.000016689 s  step: 0.003%
+    for region adaptation:110  0.000016689 s  step: 0.003%
+parallel region adaptation:146  0.000014067 s  step: 0.003%
+    for region adaptation:146  0.000014067 s  step: 0.003%
+parallel region do_coarsen:184  0.000035524 s  step: 0.007%
+    for region do_coarsen:186 (nowait)  0.000024557 s  step: 0.005%
+parallel region do_coarsen:199  0.000040054 s  step: 0.008%
+    for region do_coarsen:199  0.000040054 s  step: 0.008%
+parallel region do_coarsen:282  0.000025272 s  step: 0.005%
+    for region do_coarsen:282  0.000025272 s  step: 0.005%
+parallel region do_coarsen:297  0.000037670 s  step: 0.008%
+    for region do_coarsen:297  0.000037670 s  step: 0.008%
+parallel region do_refine:334  0.000015020 s  step: 0.003%
+    for region do_refine:334  0.000015020 s  step: 0.003%
+parallel region do_refine:354  0.000011921 s  step: 0.002%
+    for region do_refine:354  0.000011921 s  step: 0.002%
+parallel region do_refine:365  0.000012875 s  step: 0.003%
+    for region do_refine:365  0.000012875 s  step: 0.003%
+parallel region do_refine:392  0.000144005 s  step: 0.030%
+    for region do_refine:392  0.000144005 s  step: 0.030%
+parallel region find_coarsen:732  0.000055313 s  step: 0.011%
+    for region find_coarsen:732  0.000055313 s  step: 0.011%
+parallel region find_refine:766  0.000050068 s  step: 0.010%
+    for region find_refine:766  0.000050068 s  step: 0.010%
+parallel region check_refine:791  0.000081778 s  step: 0.017%
+    for region check_refine:791  0.000081778 s  step: 0.017%
+parallel region convect:69  0.012482882 s  step: 2.590%
+    for region convect:69  0.012482882 s  step: 2.590%
+parallel region convect:242  0.000533342 s  step: 0.111%
+    for region convect:242  0.000533342 s  step: 0.111%
+parallel region diffusion:54  0.000175238 s  step: 0.036%
+    for region diffusion:54  0.000175238 s  step: 0.036%
+parallel region diffusion:65  0.000996590 s  step: 0.207%
+    for region diffusion:67 (nowait)  0.000965118 s  step: 0.200%
+parallel region diffusion:94  0.006582022 s  step: 1.366%
+    for region diffusion:99 (nowait)  0.006133080 s  step: 1.273%
+parallel region diffusion:134  0.025005102 s  step: 5.188%
+    for region diffusion:134  0.025005102 s  step: 5.188%
+parallel region diffusion:144  0.005692959 s  step: 1.181%
+    for region diffusion:144  0.005692959 s  step: 1.181%
+parallel region diffusion:155  0.007768631 s  step: 1.612%
+    for region diffusion:158 (nowait)  0.007408142 s  step: 1.537%
+parallel region mortar:81  0.000047207 s  step: 0.010%
+    for region mortar:81  0.000047207 s  step: 0.010%
+parallel region mortar:751  0.000010014 s  step: 0.002%
+    for region mortar:751  0.000010014 s  step: 0.002%
+parallel region mortar:763  0.000305891 s  step: 0.063%
+    for region mortar:763  0.000305891 s  step: 0.063%
+parallel region mortar:810  0.000038147 s  step: 0.008%
+    for region mortar:810  0.000038147 s  step: 0.008%
+parallel region mortar:1353  0.000009775 s  step: 0.002%
+    for region mortar:1353  0.000009775 s  step: 0.002%
+parallel region mortar:1366  0.000113726 s  step: 0.024%
+    for region mortar:1366  0.000113726 s  step: 0.024%
+parallel region mortar:1484  0.000050068 s  step: 0.010%
+    for region mortar:1484  0.000050068 s  step: 0.010%
+parallel region move:50  0.000205278 s  step: 0.043%
+    for region move:53  0.000135183 s  step: 0.028%
+    for region move:102  0.000060081 s  step: 0.012%
+parallel region setuppc:61  0.000430107 s  step: 0.089%
+    for region setuppc:61  0.000430107 s  step: 0.089%
+parallel region setuppc:89  0.000082970 s  step: 0.017%
+    for region setuppc:89  0.000082970 s  step: 0.017%
+parallel region setpcmo:441  0.000033855 s  step: 0.007%
+    for region setpcmo:443 (nowait)  0.000025034 s  step: 0.005%
+parallel region setpcmo:459  0.000091076 s  step: 0.019%
+    for region setpcmo:459  0.000091076 s  step: 0.019%
+parallel region prepwork:313  0.000187635 s  step: 0.039%
+    for region prepwork:317 (nowait)  0.000159979 s  step: 0.033%
+    for region prepwork:337 (nowait)  0.000020266 s  step: 0.004%
+parallel region transf:64  0.010135412 s  step: 2.103%
+    for region transf:64  0.010135412 s  step: 2.103%
+parallel region transfb:283  0.359162569 s  step: 74.521%
+    for region transfb:287  0.001830339 s  step: 0.380%
+    for region transfb:292 (nowait)  0.356924534 s  step: 74.056%
+parallel region transfb_c:842  0.019943953 s  step: 4.138%
+    for region transfb_c:845  0.000276327 s  step: 0.057%
+    for region transfb_c:850 (nowait)  0.019623280 s  step: 4.072%
+parallel region transfb_c_2:952  0.003959656 s  step: 0.822%
+    for region transfb_c_2:956 (nowait)  0.000074863 s  step: 0.016%
+    for region transfb_c_2:965 (nowait)  0.003880978 s  step: 0.805%
+parallel region main:341  0.002994776 s  step: 0.621%
+    for region main:343  0.002669811 s  step: 0.554%
+    for region main:349  0.000260353 s  step: 0.054%
+parallel region main:368  0.001029491 s  step: 0.214%
+    for region main:368  0.001029491 s  step: 0.214%
+parallel region reciprocal:44  0.000309467 s  step: 0.064%
+    for region reciprocal:44  0.000309467 s  step: 0.064%
+parallel region r_init_omp:58  0.001478434 s  step: 0.307%
+    for region r_init_omp:58  0.001478434 s  step: 0.307%
+parallel region nr_init_omp:85  0.000324011 s  step: 0.067%
+    for region nr_init_omp:85  0.000324011 s  step: 0.067%
+parallel region l_init_omp:112  0.000063181 s  step: 0.013%
+    for region l_init_omp:112  0.000063181 s  step: 0.013%
+parallel region adds2m1:164  0.011565685 s  step: 2.400%
+    for region adds2m1:164  0.011565685 s  step: 2.400%
+parallel region adds1m1:177  0.004525185 s  step: 0.939%
+    for region adds1m1:177  0.004525185 s  step: 0.939%
+parallel region col2:191  0.003440142 s  step: 0.714%
+    for region col2:191  0.003440142 s  step: 0.714%
+parallel region add2:217  0.000487566 s  step: 0.101%
+    for region add2:217  0.000487566 s  step: 0.101%
+parallel region parallel_add:272  0.000406742 s  step: 0.084%
+    for region parallel_add:272  0.000406742 s  step: 0.084%
+parallel region parallel_add:284  0.000192881 s  step: 0.040%
+    for region parallel_add:284  0.000192881 s  step: 0.040%
+
+# exit_code: 0

@@ -65,11 +65,13 @@ HAMS.apply(cfg):
 
 生成范围仅包含应用源码，不包含 tuner 或 HAMS 内部的 OpenMP 构造。`iteration_start/end`、`step_start/end`、初始化、挂载、报告等调用仍由应用显式保留。`framework/region_control/generate_regions.py` 继续服务手工桩的独立测试；应用构建使用 `instrument_regions.py`。
 
-当前自动范围是 C/C++ 自由函数中的字面量 `parallel`、`parallel for` 和 `for`；相关源文件须一起传给生成器。嵌套 parallel、宏生成的 pragma、头文件内的 OpenMP 实现、namespace/类方法/lambda 等不支持的形态会报错。跨 helper 或无法静态证明收尾位置的 nowait 暂不自动处理；这类程序可继续使用手工桩接口。同一条件块内能静态闭合的 nowait + 普通 for 可自动处理。每个可执行文件最多 256 个 region。
+当前自动范围是 C/C++ 自由函数中的字面量 `parallel`、`parallel for` 和 `for`；相关源文件须一起传给生成器。条件块和直接调用 helper 内的 nowait 可延伸到调用者已有的 barrier 或 parallel join。编译期确定组成员、唯一 ID 和 END 位置；条件分支或重复调用仅用 master 执行标记保证首次执行时 START、固定终点处 END，全部跳过时不计时。跨文件成员及终点记录在 `instrumentation.json` 的 `loop_sites` / `end_file` 中。
+
+嵌套 parallel、宏生成的 pragma、头文件内的 OpenMP 实现、namespace/类方法/lambda、不带花括号的条件 nowait，以及无法证明唯一静态终点的控制流会报错；这类程序可继续使用手工桩接口。每个可执行文件最多 256 个 region。
 
 tuner 样本排除配置选择、绑定和反馈开销，总窗口包含这些开销；关闭报告仍向 tuner 提供样本。
 
-`REGION_TIME_REPORT` 由 framework 在每次 `region_control_init` 时读取：`1`、`true`、`yes`、`on` 开启，未设置或其他值关闭。SP 和 example 都不读取此变量、不传递报告开关；只在结束时调用 `region_report`，由 framework 决定是否输出。`INSTRUMENT=0` 始终关闭 region 报告。
+`REGION_TIME_REPORT` 由 framework 在每次 `region_control_init` 时读取：`1`、`true`、`yes`、`on` 开启，未设置或其他值关闭。各 benchmark 不读取此变量、不传递报告开关；结束时由 framework 决定是否输出。`INSTRUMENT=0` 始终关闭 region 报告。
 
 Dummy 保留上述挂载、选择、绑定、计时和反馈流程：
 
@@ -177,10 +179,22 @@ else:
 
 ## 运行与检查
 
+已同步 `ompt_v` 的全部 benchmark：
+
+| 目录 | 程序 |
+| --- | --- |
+| [NPB3.3-OMP-C](NPB3.3-OMP-C/README.md) | BT、CG、DC、EP、FT、IS、LU、MG、SP、UA，保留各自合法 Class |
+| [lulesh](lulesh/README) | LULESH 2.0，默认 OpenMP / 非 MPI |
+| [rodina](rodina/README.md) | Hotspot、Streamcluster、ParticleFilter、CFD 的 float / double 与预计算版本，共 7 个可执行文件 |
+
+这些程序复用 `framework/benchmark/benchmark.h`、`benchmark.cpp` 和 `benchmark.mk` 初始化、挂载 tuner、报告与链接公共实现。应用手工设置正式窗口和真实迭代的 step；DC、EP 等批处理程序只设置一个工作 step。各目录 README 给出输入、边界和独立测试命令。
+
 需要 OpenMP C/C++17 编译器、hwloc、Clang、Python 3 和 GNU Make 4.3+。`CLANG` / `PYTHON` 可指定插桩生成工具；使用 GCC 编译时也需要 Clang 解析。绑定所选的 CPU 须可用。
 
 ```sh
 make -C NPB3.3-OMP-C CLASS=S CC=clang-18
+make -C lulesh CC=clang-18 CXX=clang++-18
+make -C rodina CC=clang-18 CXX=clang++-18
 env -u OMP_PLACES -u KMP_AFFINITY -u GOMP_CPU_AFFINITY \
     OMP_PROC_BIND=false OMP_DYNAMIC=false OMP_NUM_THREADS=8 \
     TUNER=otter REGION_TIME_REPORT=1 ./NPB3.3-OMP-C/bin/SP.S
@@ -189,6 +203,9 @@ make -C example run TUNER=otter
 OFFLINE_CONFIG=/path/to/regions.conf make -C example run TUNER=offline
 make -C framework/ut test
 python3 NPB3.3-OMP-C/tests/test_build.py --cc clang-18
+python3 NPB3.3-OMP-C/tests/test_suite.py --cc clang-18
+python3 lulesh/tests/test_automatic_build.py --cc clang-18 --cxx clang++-18
+python3 rodina/tests/test_instrumented_build.py --cc clang-18 --cxx clang++-18
 python3 example/test_build.py --cc clang-18 --cxx clang++-18
 ```
 

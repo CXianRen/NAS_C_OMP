@@ -1,0 +1,49 @@
+LULESH
+
+Source: https://github.com/llnl/LULESH
+Imported from commit: 3e01c40b3281aadb7f996525cdd4a3354f6d3801
+Sources were carried over from this repository's ompt_v branch.
+
+Build and run from the benchmark root:
+
+    make -C lulesh -j
+    REGION_TIME_REPORT=1 OMP_NUM_THREADS=4 OMP_PROC_BIND=false \
+      TUNER=none ./lulesh/build/lulesh2.0 -s 8 -i 16
+
+This non-MPI build uses ../framework for Clang AST instrumentation, timing,
+and the shared tuner/HAMS implementations. Application sources and original
+OpenMP directives are preserved. Generated source copies, region_auto.h/c,
+and instrumentation.json stay in build/generated. Framework runtime sources
+are compiled directly and are never instrumented by the application generator.
+
+The manual iteration window encloses the formal timestep loop. Each manual
+step encloses TimeIncrement plus LagrangeLeapFrog; initialization and final
+verification are outside the window. REGION_TIME_REPORT is read only by the
+framework. Exact values 1, true, yes, and on enable region reports.
+
+    OMP_NUM_THREADS=4 OMP_PROC_BIND=false TUNER=otter \
+      ./lulesh/build/lulesh2.0 -s 8 -i 16
+
+TUNER selects none (default), dummy, offline, j2025, j2025_b, or otter without
+rebuilding. Otter chooses one shared configuration per physical timestep;
+region-scoped policies choose at each parallel boundary. J2025 variants need
+an even initial thread limit of at least two. Set OMP_PROC_BIND=false and
+clear conflicting OMP_PLACES/KMP_AFFINITY/GOMP_CPU_AFFINITY when using HAMS.
+Offline reads OFFLINE_CONFIG using generated function:pragma-line keys.
+The force-assembly scratch path follows the initial thread capacity so that
+per-region transitions from one thread to several threads retain thread-safe
+accumulation. Constraint reduction arrays use the same initial capacity and
+reduce only entries produced by the actual team. These adaptations preserve
+the original OpenMP directives.
+
+    make -C lulesh -j INSTRUMENT=0
+
+INSTRUMENT=0 retains compile-time metadata and the manual total-time window,
+but compiles away generated region hooks, disables region reports, and rejects
+enabled tuners. Both modes require Python and Clang for generation. Switching
+INSTRUMENT rebuilds automatically; an unchanged build reuses generated files.
+Set FRAMEWORK=/path/to/framework to relocate the shared framework. USE_MPI=0
+is the supported build mode.
+
+    make -C lulesh instrument-test
+    make -C lulesh instrument-test CC=gcc CXX=g++ CLANG=clang-18

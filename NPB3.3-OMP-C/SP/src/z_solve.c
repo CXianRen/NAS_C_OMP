@@ -49,7 +49,6 @@ void z_solve()
   // Prepare for z-solve, array redistribution   
   //---------------------------------------------------------------------
 
-  PARALLEL_START(&sp_control, SP_P_Z_SOLVE);
   #pragma omp parallel for default(shared) private(i,j,k,k1,k2,m, \
                                                    ru1,fac1,fac2)
   for (j = 1; j <= ny2; j++) {
@@ -301,7 +300,6 @@ void z_solve()
       }
     }
   }
-  PARALLEL_END(&sp_control, SP_P_Z_SOLVE);
 
   tzetar();
 }

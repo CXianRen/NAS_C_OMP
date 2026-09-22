@@ -42,7 +42,6 @@ void txinvr()
   int i, j, k;
   double t1, t2, t3, ac, ru1, uu, vv, ww, r1, r2, r3, r4, r5, ac2inv;
 
-  PARALLEL_START(&sp_control, SP_P_TXINVR);
   #pragma omp parallel for default(shared) \
               private(i,j,k,t1,t2,t3,ac,ru1,uu,vv,ww,r1,r2,r3,r4,r5,ac2inv)
   for (k = 1; k <= nz2; k++) {
@@ -73,6 +72,5 @@ void txinvr()
       }
     }
   }
-  PARALLEL_END(&sp_control, SP_P_TXINVR);
 }
 

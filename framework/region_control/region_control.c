@@ -2,11 +2,20 @@
 #include <assert.h>
 #include <omp.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+static int report_enabled(void)
+{
+  const char *report = getenv("REGION_TIME_REPORT");
+  return REGION_INSTRUMENT && report &&
+         (!strcmp(report, "1") || !strcmp(report, "true") ||
+          !strcmp(report, "yes") || !strcmp(report, "on"));
+}
 
 /* 初始化调用方持有的上下文，不分配内存、不读取时钟。 */
 void region_control_init(region_control *control, region_info *regions,
-                         int count, int report)
+                         int count)
 {
   assert(control && count >= 0 && count <= REGION_CONTROL_MAX_REGIONS);
   assert(count == 0 || regions);
@@ -17,7 +26,7 @@ void region_control_init(region_control *control, region_info *regions,
   memset(control, 0, sizeof(*control));
   control->regions = regions;
   control->region_count = count;
-  control->enabled = report;
+  control->enabled = report_enabled();
   control->parallel_id = -1;
 }
 

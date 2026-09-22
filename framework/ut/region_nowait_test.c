@@ -6,6 +6,7 @@
 #include <sched.h>
 #include <stdatomic.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 
 enum { P_TAIL, F_TAIL,
@@ -133,7 +134,8 @@ int main(int argc, char **argv) {
   int report = argc == 1;
   omp_set_dynamic(0);
   omp_set_num_threads(2);
-  region_control_init(&control, regions, REGION_COUNT, report);
+  assert(setenv("REGION_TIME_REPORT", report ? "1" : "0", 1) == 0);
+  region_control_init(&control, regions, REGION_COUNT);
   for (int id = 0; id < REGION_COUNT; ++id)
     assert(control.regions[id].name && control.regions[id].file && control.regions[id].line > 0);
   iteration_start(&control);

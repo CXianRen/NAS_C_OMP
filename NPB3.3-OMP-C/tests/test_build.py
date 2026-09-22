@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check direct SP builds, runtime tuner selection and manual-hook switches."""
+"""Check direct SP builds, runtime tuner selection and automatic-hook switches."""
 import argparse
 import os
 from pathlib import Path
@@ -55,7 +55,7 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
                '-j2', f'CC={args.cc}', f'NPB_DIR={source}',
                f'BUILD_DIR={directory}/build', f'BIN_DIR={directory}/bin',
                f'CLANG={args.clang}']
-    env = dict(os.environ, NPB_TIME_REPORT='1', OMP_NUM_THREADS='4',
+    env = dict(os.environ, REGION_TIME_REPORT='1', OMP_NUM_THREADS='4',
                OMP_DYNAMIC='false', OMP_PROC_BIND='false')
     for name in ('OMP_PLACES', 'KMP_AFFINITY', 'GOMP_CPU_AFFINITY'):
         env.pop(name, None)
@@ -64,7 +64,7 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
         if name.startswith('OTTER_') or name in ('TUNER', 'OFFLINE_CONFIG'):
             env.pop(name)
 
-    # The AST generator reads existing hooks; SP files are compiled without rewriting.
+    # Every mode compiles generated source copies and one complete static table.
     def make(flags='', instrument=1, selection=None, config=None):
         build_env = dict(env)
         if selection is not None:
@@ -75,31 +75,22 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
                                  cwd=root, env=build_env,
                                  capture_output=True, text=True)
         assert process.returncode == 0, process.stdout + process.stderr
-        assert not re.search(r'instrument_regions\.py|instrumented/', process.stdout)
-        assert not list(directory.rglob('instrumentation.json'))
+        assert metadata.exists(), process.stdout + process.stderr
 
-    metadata = directory / 'build/SP.S/region_metadata.h'
+    generated = directory / 'build/SP.S/generated'
+    metadata = generated / 'instrumentation.json'
+
+    def source_table():
+        return check_sources(source / 'SP/src', metadata)
 
     def metadata_names():
-        entries = re.findall(
-            r'^#define REGION_INFO_(SP_[PF]_\w+)\(parent, combined, nowait\) '
-            r'\{ "([^"]+)", \(parent\), \(combined\), "([^"]+)", (\d+), \(nowait\) \}',
-            metadata.read_text(), re.MULTILINE)
-        table = check_sources(source / 'SP/src')
-        assert {entry[0] for entry in entries} == set(table), metadata.read_text()
-        names = []
-        for key, name, file, line in entries:
-            expected = table[key]
-            assert name == expected['function'] and int(line) == expected['line'], (key, entries)
-            assert Path(file).resolve() == expected['file'].resolve(), (key, file)
-            names.append(f'{name}:{line}')
-        return names
+        return [f"{region['function']}:{region['line']}" for region in source_table().values()]
 
     def check_startup_metadata(output):
         entries = re.findall(
             r'^metadata id=(\d+) name=(\w+) file=(.+) line=(\d+) '
             r'parent=(-?\d+) combined=(\d+) nowait=(\d+)$', output, re.MULTILINE)
-        table = check_sources(source / 'SP/src')
+        table = source_table()
         assert len(entries) == len(table), output
         ids = {key: index for index, key in enumerate(table)}
         for index, (entry, (key, expected)) in enumerate(zip(entries, table.items())):
@@ -111,12 +102,16 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
             assert int(combined) == expected['combined'] and int(nowait) == expected['nowait'], entry
 
     def parallel_names():
-        return sorted(region['label'] for region in check_sources(source / 'SP/src').values()
+        return sorted(region['label'] for region in source_table().values()
                       if region['parent'] is None)
 
     # Every configuration must retain the standard SP.S numerical result.
     def run_sp(flag, selection=None, report=True, verbose=None, config=None):
-        run_env = dict(env, NPB_TIME_REPORT='1' if report else '0')
+        run_env = dict(env)
+        if report is None:
+            run_env.pop('REGION_TIME_REPORT', None)
+        else:
+            run_env['REGION_TIME_REPORT'] = ('1' if report else '0') if isinstance(report, bool) else report
         if selection is not None:
             run_env['TUNER'] = selection
         if verbose is not None:
@@ -148,7 +143,7 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
         if 'time report' in process.stdout:
             log = directory / 'SP.log'
             log.write_text(process.stdout)
-            check_report(log, check_sources(source / 'SP/src'))
+            check_report(log, source_table())
         return process.stdout
 
     def reject_tuner(selection, message, config=None):
@@ -168,8 +163,9 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
         obj = directory / f'rhs-{instrument}.o'
         subprocess.run(shlex.split(args.cc) + [
             '-O0', '-fopenmp', f'-DREGION_INSTRUMENT={instrument}',
-            '-I', str(directory / 'build/SP.S'), '-I', str(source / 'common'),
-            '-I', str(source / 'SP/src'), '-c', str(source / 'SP/src/rhs.c'),
+            '-I', str(directory / 'build/SP.S'), '-I', str(generated),
+            '-I', str(root.parent / 'framework/region_control'), '-I', str(source / 'common'),
+            '-I', str(source / 'SP/src'), '-c', str(generated / 'rhs.c'),
             '-o', str(obj)], check=True)
         symbols = subprocess.check_output(['nm', '-u', str(obj)], text=True)
         hooks = re.findall(r'\bregion_(?:parallel|for)_(?:start|end)\b', symbols)
@@ -177,20 +173,17 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
 
     make()
     assert len(metadata_names()) == 27, metadata.read_text()
-    table = check_sources(source / 'SP/src')
-    rhs_groups = [region for region in table.values()
-                  if region['parent'] == 'SP_P_COMPUTE_RHS']
-    assert [region['line'] for region in rhs_groups] == [51, 97, 285, 333, 396]
+    table = source_table()
+    rhs_parent = next(key for key, region in table.items()
+                      if region['function'] == 'compute_rhs' and region['parent'] is None)
+    rhs_groups = [region for region in table.values() if region['parent'] == rhs_parent]
     assert [region['loop_count'] for region in rhs_groups] == [2, 2, 1, 5, 1]
-    for removed in ('SP_F_COMPUTE_RHS_2', 'SP_F_COMPUTE_RHS_4', 'SP_F_COMPUTE_RHS_7',
-                    'SP_F_EXACT_RHS_3', 'SP_F_INITIALIZE_3'):
-        assert removed not in table and removed not in metadata.read_text(), removed
-    assert table['SP_F_COMPUTE_RHS_8']['END'] > table['SP_P_COMPUTE_RHS']['body_end']
+    assert rhs_groups[-1]['timing_end'] == 'parallel_join'
     assert 'time report' in run_sp(0)
     before = binary.stat().st_mtime_ns
     make()
     assert before == binary.stat().st_mtime_ns, 'unchanged build compiled again'
-    print('PASS: direct SP.S build, shared metadata, merged nowait groups, numerical verification and build reuse', flush=True)
+    print('PASS: automatic SP.S build, shared metadata, merged nowait groups, numerical verification and build reuse', flush=True)
 
     flags = '-DTEST_BUILD_BRANCH'
     make(flags)
@@ -198,20 +191,27 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
     assert before != binary.stat().st_mtime_ns
     print('PASS: CPPFLAGS changes rebuild the executable', flush=True)
 
+    # A transitive application header is a generation and compile dependency.
+    header = source / 'SP/src/build_test.h'
+    header.write_text('#define TEST_HEADER_VALUE 1\n')
+    text = main.read_text()
+    main.write_text('#include "build_test.h"\n' + text.replace(
+        '  int i, niter, step, n3;',
+        '  printf("build-header=%d\\n", TEST_HEADER_VALUE);\n  int i, niter, step, n3;'))
+    make(flags)
+    assert 'build-header=1' in run_sp(1)
+    before = binary.stat().st_mtime_ns
+    header.write_text('#define TEST_HEADER_VALUE 2\n')
+    make(flags)
+    assert before != binary.stat().st_mtime_ns and 'build-header=2' in run_sp(1)
+    print('PASS: transitive header changes regenerate and rebuild source copies', flush=True)
+
     extra = source / 'SP/src/extra.c'
-    region_ids = source / 'SP/src/sp_regions.h'
-    region_table = source / 'SP/src/sp_regions.c'
-    original_ids, original_table = region_ids.read_text(), region_table.read_text()
-    region_ids.write_text(original_ids.replace('  SP_REGION_COUNT', '  SP_P_UNUSED,\n  SP_REGION_COUNT'))
-    region_table.write_text(original_table.replace('\n};',
-        '\n  [SP_P_UNUSED] = REGION_INFO(SP_P_UNUSED, -1, 0, 0),\n};'))
     extra.write_text('#include "sp_regions.h"\n'
                      'int extra_function(void) { return 1; }\n'
                      'void unused_region(void) {\n'
-                     '  PARALLEL_START(&sp_control, SP_P_UNUSED);\n'
                      '  #pragma omp parallel\n'
                      '  { }\n'
-                     '  PARALLEL_END(&sp_control, SP_P_UNUSED);\n'
                      '}\n')
     make(flags)
     symbols = subprocess.check_output(['nm', str(binary)], text=True)
@@ -222,8 +222,6 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
     assert 'Offline config region=unused_region:4' in run_sp(1, 'offline', config=config)
     before = binary.stat().st_mtime_ns
     extra.unlink()
-    region_ids.write_text(original_ids)
-    region_table.write_text(original_table)
     make(flags)
     symbols = subprocess.check_output(['nm', str(binary)], text=True)
     assert not re.search(r'\bextra_function$', symbols, re.MULTILINE)
@@ -260,7 +258,7 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
                    'j2025_create', 'j2025_select_cfg', 'j2025_observe', 'j2025_destroy',
                    'j2025_b_create', 'j2025_b_select_cfg', 'j2025_b_observe',
                    'j2025_b_destroy', 'otter_select_cfg', 'offline_select_cfg',
-                   'sp_regions'):
+                   'region_auto_info'):
         assert symbol in symbols, symbol
     assert 'offline_region_names' not in symbols and 'offline_region_count' not in symbols
     reject_tuner('ottre', 'TUNER')
@@ -269,9 +267,12 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
     for selection in ('none', 'dummy', 'j2025', 'j2025_b', 'otter', 'offline'):
         assert 'time report' not in run_sp(1, selection, report=False,
                                           verbose=1 if selection == 'otter' else None)
+    for report in (None, '0', 'false', 'invalid', 'TRUE', '1', 'true', 'yes', 'on'):
+        output = run_sp(1, 'otter', report=report, verbose=1)
+        assert ('time report' in output) == (report in ('1', 'true', 'yes', 'on')), output
     assert 'time report' in run_sp(1, 'otter', verbose=0)
     assert before == binary.stat().st_mtime_ns
-    print('PASS: Otter search logs and time reports switch independently; SP verifies', flush=True)
+    print('PASS: framework report environment switch preserves Otter samples and independent search logs; SP verifies', flush=True)
 
     # Offline files are loaded at attach time and never become build inputs.
     names = parallel_names()
@@ -319,7 +320,7 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
     assert before == binary.stat().st_mtime_ns
     print('PASS: invalid Offline names, format, duplicates, masks and thread limits fail at attach', flush=True)
 
-    # Source line changes must invalidate old keys, even without changing hook spelling.
+    # Source line changes must invalidate old keys, without changing pragma spelling.
     rhs = source / 'SP/src/rhs.c'
     old_source = rhs.read_text()
     old_name = next(name for name in names if name.startswith('compute_rhs:'))

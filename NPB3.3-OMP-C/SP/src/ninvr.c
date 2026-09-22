@@ -42,7 +42,6 @@ void ninvr()
   int i, j, k;
   double r1, r2, r3, r4, r5, t1, t2;
 
-  PARALLEL_START(&sp_control, SP_P_NINVR);
   #pragma omp parallel for default(shared) private(i,j,k,r1,r2,r3,r4,r5,t1,t2)
   for (k = 1; k <= nz2; k++) {
     for (j = 1; j <= ny2; j++) {
@@ -64,6 +63,5 @@ void ninvr()
       }
     }
   }
-  PARALLEL_END(&sp_control, SP_P_NINVR);
 }
 

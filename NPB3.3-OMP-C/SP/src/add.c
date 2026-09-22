@@ -41,7 +41,6 @@ void add()
 {
   int i, j, k, m;
 
-  PARALLEL_START(&sp_control, SP_P_ADD);
   #pragma omp parallel for default(shared) private(i,j,k,m)
   for (k = 1; k <= nz2; k++) {
     for (j = 1; j <= ny2; j++) {
@@ -52,6 +51,5 @@ void add()
       }
     }
   }
-  PARALLEL_END(&sp_control, SP_P_ADD);
 }
 

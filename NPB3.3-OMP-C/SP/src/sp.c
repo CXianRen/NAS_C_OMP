@@ -44,7 +44,6 @@
 
 #include "header.h"
 #include "print_results.h"
-#include <string.h>
 #include "../../../framework/tuner/tuner.h"
 
 /* common /global/ */
@@ -158,11 +157,7 @@ int main(int argc, char *argv[])
 
   set_constants();
 
-  const char *report = getenv("NPB_TIME_REPORT");
-  int enabled = report && (!strcmp(report, "1") || !strcmp(report, "true") ||
-                          !strcmp(report, "yes") || !strcmp(report, "on"));
-  region_control_init(&sp_control, sp_regions, SP_REGION_COUNT,
-                      REGION_INSTRUMENT && enabled);
+  region_control_init(&sp_control, sp_regions, SP_REGION_COUNT);
   tuner *runtime = tuner_attach(&sp_control);
 
 

@@ -20,6 +20,11 @@ static unsigned allocations;
 static int clock_reads;
 static double clock_now;
 
+static void set_report_environment(bool report)
+{
+  assert(setenv("REGION_TIME_REPORT", report ? "1" : "0", 1) == 0);
+}
+
 /* 关闭 tuner 的路径不能创建 runtime、binding 或搜索状态。 */
 void *operator new(std::size_t size)
 {
@@ -295,7 +300,8 @@ static void check_disabled(const char *mode)
     region_info regions[] = {{"A", -1, 0, "runtime_ut.c", 10, 0},
                              {"B", -1, 0, "runtime_ut.c", 20, 0}};
     region_control control;
-    region_control_init(&control, regions, 2, 0);
+    set_report_environment(false);
+    region_control_init(&control, regions, 2);
     int reads = clock_reads;
     allocations = 0;
     count_allocations = true;
@@ -369,7 +375,8 @@ static void check_j2025(const char *name)
   region_info regions[] = {{"A", -1, 0, "runtime_ut.c", 10, 0},
                            {"B", -1, 0, "runtime_ut.c", 20, 0}};
   region_control control;
-  region_control_init(&control, regions, 2, 0);
+  set_report_environment(false);
+  region_control_init(&control, regions, 2);
   int full = omp_get_max_threads();
   tuner *runtime = tuner_attach(&control);
   assert(runtime && std::strcmp(tuner_name(runtime), name) == 0);
@@ -444,7 +451,8 @@ static void check_dummy(int report)
   region_info regions[] = {{"A", -1, 0, "runtime_ut.c", 10, 0},
                            {"B", -1, 0, "runtime_ut.c", 20, 0}};
   region_control control;
-  region_control_init(&control, regions, 2, report);
+  set_report_environment(report);
+  region_control_init(&control, regions, 2);
   int full = omp_get_max_threads();
   if (full > omp_get_thread_limit()) full = omp_get_thread_limit();
   if (full > HAMS_CPU_COUNT) full = HAMS_CPU_COUNT;
@@ -532,7 +540,8 @@ static void check_offline(const char *mode)
                            {"unused", -1, 0, "runtime_ut.c", 30, 0},
                            {"inner", 0, 0, "runtime_ut.c", 40, 0}};
   region_control control;
-  region_control_init(&control, regions, 4, report);
+  set_report_environment(report);
+  region_control_init(&control, regions, 4);
   assert(control.regions == regions && control.region_count == 4);
   assert(std::strcmp(control.regions[2].name, "unused") == 0);
   assert(control.regions[2].line == 30);
@@ -649,7 +658,8 @@ static void check_otter(int report)
   region_info regions[] = {{"A", -1, 0, "runtime_ut.c", 10, 0},
                            {"B", -1, 0, "runtime_ut.c", 20, 0}};
   region_control control;
-  region_control_init(&control, regions, 2, report);
+  set_report_environment(report);
+  region_control_init(&control, regions, 2);
   int full = omp_get_max_threads();
   tuner *runtime = tuner_attach(&control);
   assert(runtime && std::strcmp(tuner_name(runtime), "otter") == 0);

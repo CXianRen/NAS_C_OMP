@@ -29,7 +29,7 @@ RUN_OMP = env -u OMP_PLACES -u KMP_AFFINITY -u GOMP_CPU_AFFINITY \
 	-u OTTER_THRESHOLD_PERCENT -u OTTER_GOLDEN_DISTANCE -u OFFLINE_CONFIG \
 	OMP_PROC_BIND=false OMP_DYNAMIC=false OMP_NUM_THREADS=$(THREADS)
 
-.PHONY: all test hams-test j2025-test j2025-b-test otter-test dummy-test offline-test tuner-test region-control-test clean
+.PHONY: all test hams-test j2025-test j2025-b-test otter-test dummy-test offline-test tuner-test region-control-test automatic-region-test clean
 
 all: $(TARGETS)
 
@@ -82,7 +82,7 @@ $(CONTROL_TESTS): region_control_ut.c $(CONTROL)/region_control.c $(CONTROL)/reg
 		region_control_ut.c $(CONTROL)/region_control.c $(LDFLAGS) \
 		-Wl,--wrap=omp_get_wtime -o $@
 
-test: hams-test j2025-test j2025-b-test otter-test dummy-test offline-test tuner-test region-control-test
+test: hams-test j2025-test j2025-b-test otter-test dummy-test offline-test tuner-test region-control-test automatic-region-test
 
 hams-test: $(BUILD_DIR)/hams_binding_ut
 	$(RUN_OMP) $<
@@ -128,6 +128,9 @@ region-control-test: $(CONTROL_TESTS)
 	$(RUN_OMP) $(BUILD_DIR)/region_control_ut
 	$(RUN_OMP) $(BUILD_DIR)/region_control_ut_noinstrument
 	$(PYTHON) test_nowait.py --cc "$(CC)" --clang "$(CLANG)"
+
+automatic-region-test:
+	$(PYTHON) test_automatic_regions.py --cc "$(CC)" --cxx "$(CXX)" --clang "$(CLANG)"
 
 clean:
 	$(RM) -r $(BUILD_DIR)

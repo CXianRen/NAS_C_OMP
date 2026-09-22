@@ -41,11 +41,16 @@ TARGETS := $(addprefix $(BIN_DIR)/SP.,$(filter $(ALL_CLASSES),$(CLASSES)))
 
 SETPARAMS := $(BUILD_DIR)/setparams
 MAKEDEF := $(BUILD_DIR)/config/make.def
-REGION_GENERATOR := $(FRAMEWORK)/region_control/generate_regions.py
+REGION_GENERATOR := $(FRAMEWORK)/region_control/instrument_regions.py
 CLASS_DIRS := $(addprefix $(BUILD_DIR)/SP.,$(ALL_CLASSES))
-REGION_METADATA := $(addsuffix /region_metadata.h,$(CLASS_DIRS))
+EXPLICIT_TARGETS := $(filter $(addprefix $(BIN_DIR)/SP.,$(ALL_CLASSES)),$(MAKECMDGOALS))
+DEPENDENCY_CLASSES := $(if $(EXPLICIT_TARGETS),$(patsubst $(BIN_DIR)/SP.%,%,$(EXPLICIT_TARGETS)),$(filter $(ALL_CLASSES),$(CLASSES)))
 
--include $(wildcard $(addsuffix /region_metadata.d,$(CLASS_DIRS)))
+# Included depfiles are generated targets: load only the requested classes so
+# changing flags does not regenerate unrelated builds, or build during clean.
+ifeq ($(filter clean,$(MAKECMDGOALS)),)
+-include $(wildcard $(addsuffix /generated/instrumentation.d,$(addprefix $(BUILD_DIR)/SP.,$(DEPENDENCY_CLASSES))))
+endif
 
 .PHONY: all check clean FORCE
 
@@ -81,22 +86,36 @@ $(BUILD_DIR)/control/%.o: $(FRAMEWORK)/%.cpp $(CONTROL_HEADERS) $(MAKEDEF)
 	@mkdir -p "$(@D)"
 	$(CXX) $(CPPFLAGS) $(NPB_CXXFLAGS) $(CONTROL_CPPFLAGS) -c "$<" -o "$@"
 
-# 七个 Class 的参数头和 region 元数据各自独立；AST 提取已有 hook，不改写源码。
+# 七个 Class 的参数头和生成副本各自独立；只扫描 SP 应用源码。
 $(addsuffix /npbparams.h,$(CLASS_DIRS)): $(BUILD_DIR)/SP.%/npbparams.h: $(SETPARAMS) $(MAKEDEF) Makefile
 	@mkdir -p "$(@D)"
 	@rm -f "$@"
 	@cd "$(@D)" && ../setparams SP "$*"
 
-$(REGION_METADATA): $(BUILD_DIR)/SP.%/region_metadata.h: $(SOURCES) $(HEADERS) $(BUILD_DIR)/SP.%/npbparams.h $(MAKEDEF) $(REGION_GENERATOR) Makefile
-	$(PYTHON) $(REGION_GENERATOR) --clang "$(CLANG)" --output "$@" --depfile "$(@:.h=.d)" \
-		--sources $(SOURCES) -- $(CPPFLAGS) $(NPB_CFLAGS) $(CONTROL_CPPFLAGS) \
-		-I"$(BUILD_DIR)/SP.$*" -I"$(NPB_DIR)/common" -I"$(NPB_DIR)/SP/src"
+# A grouped rule restores any removed generated output and runs once per class.
+define SP_CLASS_RULES
+SP_GENERATED_$1 := $(addprefix $(BUILD_DIR)/SP.$1/generated/,$(notdir $(SP_SOURCES))) \
+	$(addprefix $(BUILD_DIR)/SP.$1/generated/,region_auto.h region_auto.c instrumentation.json instrumentation.d .region-auto-owner.json)
 
-$(addprefix $(BIN_DIR)/SP.,$(ALL_CLASSES)): $(BIN_DIR)/SP.%: $(SOURCES) $(HEADERS) $(BUILD_DIR)/SP.%/npbparams.h $(BUILD_DIR)/SP.%/region_metadata.h $(MAKEDEF) $(CONTROL_OBJECTS) Makefile | check
-	@mkdir -p "$(@D)"
+$$(SP_GENERATED_$1) &: $(SP_SOURCES) $(HEADERS) $(BUILD_DIR)/SP.$1/npbparams.h $(MAKEDEF) $(REGION_GENERATOR) Makefile
+	$(PYTHON) $(REGION_GENERATOR) $(SP_SOURCES) --clang "$(CLANG)" \
+		--output "$(BUILD_DIR)/SP.$1/generated" --control '&sp_control' \
+		--depfile "$(BUILD_DIR)/SP.$1/generated/instrumentation.d" -- \
+		$(CPPFLAGS) $(NPB_CFLAGS) $(CONTROL_CPPFLAGS) \
+		-I"$(BUILD_DIR)/SP.$1" -I"$(NPB_DIR)/common" -I"$(NPB_DIR)/SP/src" \
+		-I"$(FRAMEWORK)/region_control"
+
+$(BIN_DIR)/SP.$1: $(SOURCES) $(HEADERS) $(BUILD_DIR)/SP.$1/npbparams.h $$(SP_GENERATED_$1) $(MAKEDEF) $(CONTROL_OBJECTS) Makefile | check
+	@mkdir -p "$$(@D)"
 	$(CC) $(CPPFLAGS) $(NPB_CFLAGS) $(CONTROL_CPPFLAGS) \
-		-I"$(BUILD_DIR)/SP.$*" -I"$(NPB_DIR)/common" -I"$(NPB_DIR)/SP/src" \
-		$(SOURCES) $(CONTROL_OBJECTS) -o "$@" $(NPB_LDFLAGS) $(CONTROL_LIBS) -lm
+		-I"$(BUILD_DIR)/SP.$1/generated" -I"$(BUILD_DIR)/SP.$1" \
+		-I"$(NPB_DIR)/common" -iquote "$(NPB_DIR)/SP/src" -I"$(FRAMEWORK)/region_control" \
+		$(addprefix $(BUILD_DIR)/SP.$1/generated/,$(notdir $(SP_SOURCES))) \
+		$(BUILD_DIR)/SP.$1/generated/region_auto.c $(NPB_DIR)/common/print_results.c \
+		$(FRAMEWORK)/region_control/region_control.c $(CONTROL_OBJECTS) \
+		-o "$$@" $(NPB_LDFLAGS) $(CONTROL_LIBS) -lm
+endef
+$(foreach class,$(ALL_CLASSES),$(eval $(call SP_CLASS_RULES,$(class))))
 
 clean:
 	rm -rf "$(BUILD_DIR)" "$(BIN_DIR)"

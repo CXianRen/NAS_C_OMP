@@ -40,7 +40,6 @@ void compute_rhs()
   int i, j, k, m;
   double aux, rho_inv, uijk, up1, um1, vijk, vp1, vm1, wijk, wp1, wm1;
 
-  PARALLEL_START(&sp_control, SP_P_COMPUTE_RHS);
   #pragma omp parallel default(shared) private(i,j,k,m,rho_inv,aux,uijk, \
                                        up1,um1,vijk,vp1,vm1,wijk,wp1,wm1)
   {
@@ -48,7 +47,6 @@ void compute_rhs()
   // compute the reciprocal of density, and the kinetic energy, 
   // and the speed of sound. 
   //---------------------------------------------------------------------
-  FOR_START(&sp_control, SP_F_COMPUTE_RHS_1);
   #pragma omp for schedule(static) nowait
   for (k = 0; k <= grid_points[2]-1; k++) {
     for (j = 0; j <= grid_points[1]-1; j++) {
@@ -89,12 +87,10 @@ void compute_rhs()
       }
     }
   }
-  FOR_END(&sp_control, SP_F_COMPUTE_RHS_1);
 
   //---------------------------------------------------------------------
   // compute xi-direction fluxes 
   //---------------------------------------------------------------------
-  FOR_START(&sp_control, SP_F_COMPUTE_RHS_3);
   #pragma omp for schedule(static) nowait
   for (k = 1; k <= nz2; k++) {
     for (j = 1; j <= ny2; j++) {
@@ -276,13 +272,11 @@ void compute_rhs()
       }
     }
   }
-  FOR_END(&sp_control, SP_F_COMPUTE_RHS_3);
 
 
   //---------------------------------------------------------------------
   // compute zeta-direction fluxes 
   //---------------------------------------------------------------------
-  FOR_START(&sp_control, SP_F_COMPUTE_RHS_5);
   #pragma omp for schedule(static)
   for (k = 1; k <= grid_points[2]-2; k++) {
     for (j = 1; j <= grid_points[1]-2; j++) {
@@ -324,13 +318,11 @@ void compute_rhs()
       }
     }
   }
-  FOR_END(&sp_control, SP_F_COMPUTE_RHS_5);
 
   //---------------------------------------------------------------------
   // add fourth order zeta-direction dissipation                
   //---------------------------------------------------------------------
   k = 1;
-  FOR_START(&sp_control, SP_F_COMPUTE_RHS_6);
   #pragma omp for schedule(static) nowait
   for (j = 1; j <= grid_points[1]-2; j++) {
     for (i = 1; i <= grid_points[0]-2; i++) {
@@ -391,9 +383,7 @@ void compute_rhs()
       }
     }
   }
-  FOR_END(&sp_control, SP_F_COMPUTE_RHS_6);
 
-  FOR_START(&sp_control, SP_F_COMPUTE_RHS_8);
   #pragma omp for schedule(static) nowait
   for (k = 1; k <= nz2; k++) {
     for (j = 1; j <= ny2; j++) {
@@ -405,6 +395,4 @@ void compute_rhs()
     }
   }
   } //end parallel
-  FOR_END(&sp_control, SP_F_COMPUTE_RHS_8);
-  PARALLEL_END(&sp_control, SP_P_COMPUTE_RHS);
 }

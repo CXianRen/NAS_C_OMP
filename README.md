@@ -1,6 +1,6 @@
 # OpenMP tuning framework
 
-`region_control` 在编译期生成 region 元数据，并提供 hook 和计时；`tuner` 选择配置，`HAMS` 应用线程数及 CPU 绑定。
+`region_control` 用 Clang AST 在编译前自动插入 OpenMP region 桩，并生成完整元数据；`tuner` 选择配置，`HAMS` 应用线程数及 CPU 绑定。应用的总计时窗口、step 和其他业务边界仍手工标记。
 
 | `TUNER` | 搜索状态 | 配置生效位置 | 反馈耗时 |
 | --- | --- | --- | --- |
@@ -15,11 +15,13 @@
 
 ```text
 build:
-    region_control 用 Clang AST 解析 parallel / for 的 start hook
-    生成 region_metadata.h，按 region ID 提供 name / file / line 初始化值
-    与手写 parent / combined / nowait 一起，编译进应用原有 region_info 表
+    Clang AST 识别应用源码的 parallel / parallel for / for
+    按现有 nowait 规则静态合并循环，计算一对 START / END 的位置
+    在构建目录生成插桩源码副本、region_auto.h / .c 和 instrumentation.json
+    编译源码副本和完整 region_info 表，再链接共享 framework
 
-control = region_control_init(region 表, 是否输出报告)
+region_control_init(control, region 表, region 数量)
+// framework 读取 REGION_TIME_REPORT，决定是否累计并输出 region 报告
 // 此时所有 region 的元数据已完整；任意 tuner 均可读取 control.regions[R]
 tuner = tuner_attach(control)                 // 按环境变量 TUNER 挂载 callback
 iteration_start()                             // 正式总计时窗口
@@ -57,9 +59,17 @@ HAMS.apply(cfg):
     设置默认线程数；按 cfg 的 tid → CPU 映射绑定线程
 ```
 
-源码、头文件或编译参数变化时重新生成元数据；无需先执行 region，`TUNER=none` 和 `INSTRUMENT=0` 也保留完整信息。
+源码、头文件或编译参数变化时重新生成源码副本和元数据；无需先执行 region，`TUNER=none` 和 `INSTRUMENT=0` 也保留完整信息。原始源码只保留 OpenMP 指令和手工应用边界，不维护 OpenMP region ID 或表。
+
+自动生成器复用 `ompt_v` 的 Clang AST 源码改写设计，事件仍进入现有 `region_control`，没有使用 OMPT 回调。`parallel` 桩在构造外执行，`for` 桩只由 master 计时。连续 nowait 循环与后续普通 for 合成一个 region，END 放在该普通 for 的隐式 barrier 后；尾部 nowait 的 END 放在 enclosing parallel join 后。合并区间只生成一个 ID，不增加 barrier，规则见 [for_region_merge.md](for_region_merge.md)。
+
+生成范围仅包含应用源码，不包含 tuner 或 HAMS 内部的 OpenMP 构造。`iteration_start/end`、`step_start/end`、初始化、挂载、报告等调用仍由应用显式保留。`framework/region_control/generate_regions.py` 继续服务手工桩的独立测试；应用构建使用 `instrument_regions.py`。
+
+当前自动范围是 C/C++ 自由函数中的字面量 `parallel`、`parallel for` 和 `for`；相关源文件须一起传给生成器。嵌套 parallel、宏生成的 pragma、头文件内的 OpenMP 实现、namespace/类方法/lambda 等不支持的形态会报错。跨 helper 或无法静态证明收尾位置的 nowait 暂不自动处理；这类程序可继续使用手工桩接口。同一条件块内能静态闭合的 nowait + 普通 for 可自动处理。每个可执行文件最多 256 个 region。
 
 tuner 样本排除配置选择、绑定和反馈开销，总窗口包含这些开销；关闭报告仍向 tuner 提供样本。
+
+`REGION_TIME_REPORT` 由 framework 在每次 `region_control_init` 时读取：`1`、`true`、`yes`、`on` 开启，未设置或其他值关闭。SP 和 example 都不读取此变量、不传递报告开关；只在结束时调用 `region_report`，由 framework 决定是否输出。`INSTRUMENT=0` 始终关闭 region 报告。
 
 Dummy 保留上述挂载、选择、绑定、计时和反馈流程：
 
@@ -73,7 +83,9 @@ observe(region, 耗时): return
 
 ## 2. Offline：按文件配置每个 region
 
-`OFFLINE_CONFIG` 指定文件，默认空；每行 `函数名:行号;线程数;十六进制 mask`，例如 `compute_rhs:43;2;0x5`（CPU 0、2）。允许空行和 `#` 注释行。
+`OFFLINE_CONFIG` 指定文件，默认空；每行 `函数名:原始源码 pragma 行号;线程数;十六进制 mask`，例如 `compute_rhs:43;2;0x5`（CPU 0、2；行号以当前生成结果为准）。允许空行和 `#` 注释行。
+
+配置名称直接使用自动生成的 `function:line`，可从构建目录的 `instrumentation.json` 中读取 `parent=-1` 的条目，或查看运行报告。没有旧手工桩行号的兼容映射；源码位置变化后须更新配置。region ID 是当前构建内部的索引，不作为外部配置键。同名同位置键的歧义在生成阶段报错。
 
 ```text
 attach:
@@ -159,26 +171,27 @@ else:
 搜索结束：后续 step 复用统一配置
 ```
 
-源码：[挂载](framework/tuner/tuner.cpp) · [计时](framework/region_control/region_control.c) · [绑定](framework/hams/hams_binding.cpp) · [Dummy](framework/dummy/dummy.cpp) · [Offline](framework/offline/offline.cpp) · [元数据生成](framework/region_control/generate_regions.py) · [J2025](framework/j2025/j2025.cpp) · [J2025_B](framework/j2025_b/j2025_b.cpp) · [Otter](framework/otter/otter.cpp)。
+源码：[挂载](framework/tuner/tuner.cpp) · [计时](framework/region_control/region_control.c) · [绑定](framework/hams/hams_binding.cpp) · [Dummy](framework/dummy/dummy.cpp) · [Offline](framework/offline/offline.cpp) · [自动插桩](framework/region_control/instrument_regions.py) · [J2025](framework/j2025/j2025.cpp) · [J2025_B](framework/j2025_b/j2025_b.cpp) · [Otter](framework/otter/otter.cpp)。
 
 分阶段伪代码：[J2025](framework/j2025/J-2025.md) · [J2025_B](framework/j2025_b/J-2025_B.md) · [Otter](framework/otter/Otter.md)。
 
 ## 运行与检查
 
-需要 OpenMP C/C++17 编译器、hwloc、Clang 和 Python 3。`CLANG` / `PYTHON` 可指定元数据生成工具；使用 GCC 编译时也需要 Clang 解析。绑定所选的 CPU 须可用。
+需要 OpenMP C/C++17 编译器、hwloc、Clang、Python 3 和 GNU Make 4.3+。`CLANG` / `PYTHON` 可指定插桩生成工具；使用 GCC 编译时也需要 Clang 解析。绑定所选的 CPU 须可用。
 
 ```sh
 make -C NPB3.3-OMP-C CLASS=S CC=clang-18
 env -u OMP_PLACES -u KMP_AFFINITY -u GOMP_CPU_AFFINITY \
     OMP_PROC_BIND=false OMP_DYNAMIC=false OMP_NUM_THREADS=8 \
-    TUNER=otter NPB_TIME_REPORT=1 ./NPB3.3-OMP-C/bin/SP.S
+    TUNER=otter REGION_TIME_REPORT=1 ./NPB3.3-OMP-C/bin/SP.S
 
 make -C example run TUNER=otter
 OFFLINE_CONFIG=/path/to/regions.conf make -C example run TUNER=offline
 make -C framework/ut test
 python3 NPB3.3-OMP-C/tests/test_build.py --cc clang-18
+python3 example/test_build.py --cc clang-18 --cxx clang++-18
 ```
 
 切换 `TUNER=none|dummy|offline|j2025|j2025_b|otter` 或 `OFFLINE_CONFIG` 无需重编译。Dummy、Offline、J2025 与 J2025_B 需要 `OMP_PROC_BIND=false`。`INSTRUMENT=0` 关闭 region hook，此构建仅允许 `TUNER=none`。
-Otter 默认打印搜索过程（step、配置、耗时 `time_us`、预热标记、搜索分支和状态转换），收敛后停止逐步打印；`OTTER_VERBOSE=0` 仅保留最终配置。过程日志不受 `NPB_TIME_REPORT` 控制，打印不计入 tuner 样本。
+Otter 默认打印搜索过程（step、配置、耗时 `time_us`、预热标记、搜索分支和状态转换），收敛后停止逐步打印；`OTTER_VERBOSE=0` 仅保留最终配置。过程日志不受 `REGION_TIME_REPORT` 控制，打印不计入 tuner 样本。
 独立绑定工具见 [FastCheck](FastCheck/README.md)。

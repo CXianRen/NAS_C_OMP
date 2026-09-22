@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Check SP metadata, explicit merged for boundaries and reports."""
+"""Check generated SP metadata against source pragmas and compiled reports."""
 import argparse
+import json
 from pathlib import Path
 import re
 
 from report_region_times import parse_log
 
 ROOT = Path(__file__).resolve().parents[1]
-HOOK = re.compile(r'\b(PARALLEL|FOR)_(START|END)\(\s*&sp_control\s*,\s*(SP_[PF]_\w+)\s*\)')
+HOOK = re.compile(r'\b(?:PARALLEL|FOR)_(?:START|END)\s*\(')
 FUNCTION = re.compile(r'^\s*(?:void|int|double)\s+(\w+)\s*\([^;{}]*\)\s*\{', re.MULTILINE)
 FOR_PRAGMA = re.compile(r'#pragma\s+omp\s+for\b[^\n]*')
 
@@ -28,84 +29,76 @@ def block_end(code, start):
     raise AssertionError('unclosed block')
 
 
-# Check manual structure independently of the generated name/file/line initializers.
-def check_sources(directory=ROOT / 'SP/src'):
-    ids = re.findall(r'\b(SP_[PF]_\w+)\s*,', (directory / 'sp_regions.h').read_text())
-    entries = re.findall(
-        r'\[(SP_[PF]_\w+)\]\s*=\s*REGION_INFO\(\s*(SP_[PF]_\w+)\s*,\s*(-?\w+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)',
-        (directory / 'sp_regions.c').read_text())
-    assert [entry[0] for entry in entries] == ids
-    table = {}
-    for key, metadata_id, parent, combined, nowait in entries:
-        assert key == metadata_id, (key, metadata_id)
-        table[key] = {'parent': None if parent == '-1' else parent,
-                      'combined': int(combined), 'nowait': int(nowait)}
-    sources = {}
+# The manifest maps IDs; independent source checks define expected grouping.
+def check_sources(directory=ROOT / 'SP/src', manifest=None):
+    directory = Path(directory).resolve()
+    manifest = Path(manifest) if manifest else ROOT / '.build/SP.S/generated/instrumentation.json'
+    data = json.loads(manifest.read_text())
+    regions = data['regions']
+    assert [region['id'] for region in regions] == list(range(len(regions)))
+    table, sources = {}, {}
     for path in directory.glob('*.c'):
         source = path.read_text()
-        sources[path] = source_code(source)
-        functions = list(FUNCTION.finditer(source))
-        for hook in HOOK.finditer(source):
-            kind, boundary, key = hook.groups()
-            region = table[key]
-            assert boundary not in region, (path, key, 'duplicate hook')
-            region[boundary] = hook.start()
-            if boundary == 'END':
-                continue
-            region['file'] = path
-            region['line'] = source.count('\n', 0, hook.start()) + 1
-            region['function'] = next(f[1] for f in reversed(functions) if f.start() < hook.start())
-            region['label'] = f"{region['function']}:{region['line']}" + (' (nowait)' if region['nowait'] else '')
-            pragma = re.search(r'#pragma omp[^\n]*(?:\\\n[^\n]*)?', source[hook.end():])[0]
-            assert ('PARALLEL' if region['parent'] is None else 'FOR') == kind
-            assert bool(re.search(r'\bparallel\b', pragma)) == (kind == 'PARALLEL')
-            assert bool(re.search(r'\bparallel\s+for\b', pragma)) == bool(region['combined'])
-            assert bool(re.search(r'\bnowait\b', pragma)) == bool(region['nowait'])
-    for key, region in table.items():
-        if region['parent'] is None:
-            assert region['START'] < region['END'], key
-            continue
-        owner = table[region['parent']]
-        assert owner['parent'] is None and owner['file'] == region['file'], key
-        assert owner['START'] < region['START'] < owner['END'], key
-        assert region['START'] < region['END'] < owner['END'], key
-
+        assert not HOOK.search(source_code(source)), (path, 'manual OpenMP hooks remain')
+        sources[path.resolve()] = source_code(source)
+    for region in regions:
+        path = Path(region['file']).resolve()
+        assert path in sources, (path, 'unexpected generated region source')
+        code = sources[path]
+        lines = code.splitlines()
+        line = region['line']
+        pragma = lines[line - 1].strip()
+        kind = region['kind']
+        assert pragma.startswith('#pragma omp '), (path, line, pragma)
+        assert bool(re.search(r'\bparallel\b', pragma)) == (kind != 'for')
+        assert bool(re.search(r'\bparallel\s+for\b', pragma)) == (kind == 'combined')
+        assert bool(re.search(r'\bnowait\b', pragma)) == bool(region['nowait'])
+        position = sum(len(text) + 1 for text in lines[:line - 1])
+        functions = list(FUNCTION.finditer(code, 0, position))
+        assert functions and functions[-1][1] == region['function'], region
+        table[region['id']] = dict(region, file=path,
+            parent=None if region['parent'] == -1 else region['parent'],
+            combined=int(kind == 'combined'), START=position,
+            label=f"{region['function']}:{line}" + (' (nowait)' if region['nowait'] else ''),
+            loop_count=len(region['loop_lines']))
+    source_parallel_sites = set()
+    for path, code in sources.items():
+        source_parallel_sites.update((path, code.count('\n', 0, match.start()) + 1)
+            for match in re.finditer(r'#pragma\s+omp\s+parallel\b', code))
+    assert {(region['file'], region['line']) for region in table.values()
+            if region['parent'] is None} == source_parallel_sites
+    for region in table.values():
+        if region['parent'] is not None:
+            assert region['parent'] in table, region
+            owner = table[region['parent']]
+            assert owner['parent'] is None and not owner['combined'], region
     for parent, owner in table.items():
-        if owner['parent'] is not None:
-            continue
-        children = sorted((key for key in table if table[key]['parent'] == parent),
-                          key=lambda key: table[key]['START'])
-        if not children:
+        if owner['parent'] is not None or owner['combined']:
             continue
         code = sources[owner['file']]
         opening, closing = block_end(code, owner['START'])
         owner['body_end'] = closing
         loops = list(FOR_PRAGMA.finditer(code, opening, closing))
-        covered = []
-        previous_end = opening
-        for key in children:
-            region = table[key]
-            assert previous_end < region['START'] < closing, key
-            previous_end = region['END']
-            members = [loop for loop in loops
-                       if region['START'] < loop.start() < region['END']]
-            assert members, (key, 'no enclosed OpenMP for')
-            covered.extend(members)
-            # A merged region has one START and one END. Every loop except its
-            # final loop must be nowait; an ordinary loop closes the region.
-            assert all(re.search(r'\bnowait\b', loop[0]) for loop in members[:-1]), key
-            last = members[-1]
-            _, last_end = block_end(code, last.end())
-            assert last_end < region['END'], key
-            region['loop_count'] = len(members)
+        expected, group = [], []
+        for loop in loops:
+            group.append(code.count('\n', 0, loop.start()) + 1)
+            if not re.search(r'\bnowait\b', loop[0]):
+                expected.append(group)
+                group = []
+        if group:
+            expected.append(group)
+        children = sorted((region for region in table.values() if region['parent'] == parent),
+                          key=lambda region: region['line'])
+        assert [child['loop_lines'] for child in children] == expected, (owner, children, expected)
+        for child in children:
+            assert child['file'] == owner['file'] and opening < child['START'] < closing, child
+            assert child['line'] == child['loop_lines'][0], child
+            last = next(loop for loop in loops
+                        if code.count('\n', 0, loop.start()) + 1 == child['loop_lines'][-1])
             if re.search(r'\bnowait\b', last[0]):
-                # A terminal nowait ends explicitly after the parallel join.
-                assert closing < region['END'], (key, 'nowait END before parallel join')
-                assert not code[closing + 1:region['END']].strip(), key
+                assert child['timing_end'] == 'parallel_join', child
             else:
-                assert region['END'] < closing, key
-                assert not code[last_end + 1:region['END']].strip(), key
-        assert covered == loops, (parent, 'each OpenMP for must belong to exactly one region')
+                assert child['timing_end'] in ('construct_end', 'for_barrier'), child
     return table
 
 
@@ -161,15 +154,16 @@ def check_report(path, table):
     return result
 
 
-# Without a log, validate metadata and explicit merged hook pairs.
+# Without a log, validate generated metadata and source-defined merged groups.
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('path', type=Path, nargs='?', help='SP log or a directory containing SP.log')
     parser.add_argument('--source-dir', type=Path, default=ROOT / 'SP/src')
+    parser.add_argument('--manifest', type=Path, default=ROOT / '.build/SP.S/generated/instrumentation.json')
     args = parser.parse_args()
-    table = check_sources(args.source_dir)
+    table = check_sources(args.source_dir, args.manifest)
     parallel = sum(region['parent'] is None for region in table.values())
-    print(f'PASS: {len(table)} manual regions ({parallel} parallel, {len(table) - parallel} for)')
+    print(f'PASS: {len(table)} automatic regions ({parallel} parallel, {len(table) - parallel} for)')
     if args.path:
         path = args.path / 'SP.log' if args.path.is_dir() else args.path
         result = check_report(path, table)

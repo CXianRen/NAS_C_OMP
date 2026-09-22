@@ -1,11 +1,18 @@
+#define _POSIX_C_SOURCE 200809L
 #include "../region_control/region_control.h"
 #include "region_metadata.h"
 #include <assert.h>
 #include <omp.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static int reads, events[64], event_count;
+
+static void set_report_environment(int report)
+{
+  assert(setenv("REGION_TIME_REPORT", report ? "1" : "0", 1) == 0);
+}
 
 /* Test clock: record exact event order and reject worker-thread clock reads. */
 double __wrap_omp_get_wtime(void)
@@ -102,7 +109,8 @@ static void check(int report)
   };
   region_control control;
   reads = event_count = 0;
-  region_control_init(&control, regions, 5, report);
+  set_report_environment(report);
+  region_control_init(&control, regions, 5);
   /* Every descriptor is readable before any region executes, even without hooks. */
   for (int id = 0; id < 5; ++id) {
     assert(!strcmp(control.regions[id].name, id ? "with_loops" : "combined"));
@@ -163,8 +171,10 @@ static void check_contexts(void)
   region_info regions[] = {REGION_INFO(0, -1, 1, 0)};
   region_control a, b;
   reads = event_count = 0;
-  region_control_init(&a, regions, 1, 1);
-  region_control_init(&b, NULL, 0, 0);
+  set_report_environment(1);
+  region_control_init(&a, regions, 1);
+  set_report_environment(0);
+  region_control_init(&b, NULL, 0);
   assert(reads == 0);
   iteration_start(&a);
   iteration_start(&b);
@@ -225,7 +235,8 @@ static void check_step_samples(int report)
     sample_step_start, NULL, NULL, on_step_end, sample_step
   };
   reads = event_count = 0;
-  region_control_init(&control, regions, 1, report);
+  set_report_environment(report);
+  region_control_init(&control, regions, 1);
   region_control_register(&control, &callbacks, &samples);
   step_start(&control, 6);
   step_end(&control, 6);
@@ -280,13 +291,41 @@ static void check_step_samples(int report)
   assert(samples.count == 3 && reads == previous_reads + 1);
 }
 
+/* Each context reads the environment once at init, with exact accepted values.
+ * The disabled build must reject enabling requests without affecting sampling. */
+static void check_report_environment(void)
+{
+  const struct { const char *value; int enabled; } cases[] = {
+    {NULL, 0}, {"1", 1}, {"0", 0}, {"true", 1}, {"false", 0},
+    {"yes", 1}, {"invalid", 0}, {"on", 1}, {"", 0}, {"TRUE", 0},
+    {"YES", 0}, {"ON", 0}, {" 1", 0}, {"1 ", 0}, {"on", 1}, {NULL, 0}
+  };
+  region_info regions[] = {REGION_INFO(0, -1, 1, 0)};
+  region_control retained, current;
+  int previous_reads = reads;
+  set_report_environment(1);
+  region_control_init(&retained, regions, 1);
+  for (unsigned index = 0; index < sizeof(cases) / sizeof(cases[0]); ++index) {
+    if (cases[index].value)
+      assert(setenv("REGION_TIME_REPORT", cases[index].value, 1) == 0);
+    else
+      assert(unsetenv("REGION_TIME_REPORT") == 0);
+    region_control_init(&current, regions, 1);
+    assert(current.enabled == (REGION_INSTRUMENT && cases[index].enabled));
+    assert(!current.active && !current.running);
+    assert(retained.enabled == !!REGION_INSTRUMENT);
+  }
+  assert(reads == previous_reads);  /* Parsing does not start a timing window. */
+}
+
 /* Run the same manually instrumented code with reports enabled and disabled. */
 int main(void)
 {
+  check_report_environment();
   check(1);
   check(0);
   check_contexts();
   check_step_samples(0);
   check_step_samples(1);
-  puts("region_control=PASS (hooks, callbacks, region/step samples, master, nowait, compile-time metadata, contexts, total-only)");
+  puts("region_control=PASS (hooks, callbacks, region/step samples, master, nowait, compile-time metadata, contexts, environment, total-only)");
 }

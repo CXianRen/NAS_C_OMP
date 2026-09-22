@@ -43,9 +43,11 @@ typedef struct region_control {
 extern "C" {
 #endif
 
-/* 挂载编译期初始化的 region 表；所有 tuner 共用此元数据，不依赖首次执行。 */
+/* 挂载编译期初始化的 region 表；所有 tuner 共用此元数据，不依赖首次执行。
+ * framework 在初始化时读取 REGION_TIME_REPORT：1/true/yes/on 开启报告，
+ * 其他值或未设置时关闭。REGION_INSTRUMENT=0 始终关闭 region 报告。 */
 void region_control_init(region_control *control, region_info *regions,
-                         int count, int report);
+                         int count);
 /* 复制 callback/context；callbacks=NULL 清空注册，不接管 context 所有权。 */
 void region_control_register(region_control *control,
                              const region_control_callbacks *callbacks,

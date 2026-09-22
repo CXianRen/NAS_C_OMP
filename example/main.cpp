@@ -1,6 +1,6 @@
 #include "../framework/tuner/tuner.h"
 #include "../framework/region_control/region_control.h"
-#include "region_metadata.h"
+#include "region_auto.h"
 
 #include <cassert>
 #include <cerrno>
@@ -35,42 +35,30 @@ int main() {
   const int steps = env_positive("EXAMPLE_STEPS", 32);
   std::printf("example size=%d steps=%d\n", count, steps);
   std::vector<double> a(count, 1), b(count), c(count);
-  static region_info regions[] = {REGION_INFO(0, -1, 1, 0),
-                                  REGION_INFO(1, -1, 1, 0),
-                                  REGION_INFO(2, -1, 0, 0),
-                                  REGION_INFO(3, 2, 0, 1)};
   region_control control;
-  region_control_init(&control, regions, 4, REGION_INSTRUMENT);
+  region_control_init(&control, region_auto_info, REGION_AUTO_COUNT);
   tuner *runtime = tuner_attach(&control);
 
   iteration_start(&control);
   for (int step = 1; step <= steps; ++step) {
     step_start(&control, step);
 
-    PARALLEL_START(&control, 0);
     #pragma omp parallel for
     for (int i = 0; i < count; ++i)
       b[i] = a[i] + 1;
-    PARALLEL_END(&control, 0);
     trace(step, steps, 0);
 
-    PARALLEL_START(&control, 1);
     #pragma omp parallel for
     for (int i = 0; i < count; ++i)
       a[i] = b[i] + 1;
-    PARALLEL_END(&control, 1);
     trace(step, steps, 1);
 
-    PARALLEL_START(&control, 2);
     #pragma omp parallel
     {
-      FOR_START(&control, 3);
       #pragma omp for nowait
       for (int i = 0; i < count; ++i)
         c[i] = a[i] + b[i];
     }
-    FOR_END(&control, 3);  // 尾部 nowait 在 parallel join 后结束。
-    PARALLEL_END(&control, 2);
     trace(step, steps, 2);
 
   }
@@ -82,6 +70,6 @@ int main() {
     assert(c[i] == 1.0 + 4.0 * steps);
   }
   region_report(&control);
-  std::printf("example=PASS steps=%d regions=4\n", steps);
+  std::printf("example=PASS steps=%d regions=%d\n", steps, REGION_AUTO_COUNT);
   tuner_detach(runtime);
 }

@@ -13,6 +13,7 @@
 #include <new>
 #include <omp.h>
 #include <sched.h>
+#include <strings.h>
 #include <unistd.h>
 
 static bool count_allocations;
@@ -346,6 +347,23 @@ static void check_binding(const hams_binding_cfg &cfg)
   }
 }
 
+static hams_binding_cfg expected_auxiliary_binding(int maximum)
+{
+  hams_binding_cfg cfg{};
+  const char *threads = std::getenv("PHAMS_AUX_NUM_THREADS");
+  cfg.thread_number = threads && *threads ? std::atoi(threads) : maximum;
+  assert(cfg.thread_number >= 1 && cfg.thread_number <= maximum);
+  const char *placement = std::getenv("PHAMS_AUX_PROC_BIND");
+  bool spread = placement && *placement && !strcasecmp(placement, "spread");
+  assert(!placement || !*placement || spread || !strcasecmp(placement, "close"));
+  for (int tid = 0; tid < cfg.thread_number; ++tid) {
+    int cpu = spread ? tid * maximum / cfg.thread_number : tid;
+    cfg.mask[cpu] = true;
+    cfg.tid_to_cpu[tid] = cpu;
+  }
+  return cfg;
+}
+
 static void check_step(region_control *control, int step, bool start)
 {
   cpu_set_t before, after;
@@ -381,6 +399,7 @@ static void check_j2025(const char *name)
   tuner *runtime = tuner_attach(&control);
   assert(runtime && std::strcmp(tuner_name(runtime), name) == 0);
   assert(mock && mock->maximum == full && clock_reads == 0);
+  check_binding(expected_auxiliary_binding(full));
   int maximum = mock->maximum;
   bool variant_b = std::strcmp(name, "j2025_b") == 0;
   assert(j2025_created == !variant_b && j2025_b_created == variant_b);
@@ -466,6 +485,8 @@ static void check_dummy(int report)
   assert(rc == 0);
   tuner *runtime = tuner_attach(&control);
   assert(runtime && std::strcmp(tuner_name(runtime), "dummy") == 0);
+  hams_binding_cfg auxiliary = expected_auxiliary_binding(full);
+  check_binding(auxiliary);  // Attach prepares auxiliary regions without a policy selection.
   assert(!mock && !j2025_created && !j2025_b_created && !otter_created && !destroyed);
   assert(control.context && control.callbacks.parallel_start && control.callbacks.parallel_end);
   assert(!control.callbacks.step_start && !control.callbacks.step_end);
@@ -587,6 +608,7 @@ static void check_offline(const char *mode)
   assert(setenv("OTTER_MAX_THREADS", "1", 1) == 0);
   tuner *runtime = tuner_attach(&control);
   assert(runtime && std::strcmp(tuner_name(runtime), "offline") == 0);
+  check_binding(expected_auxiliary_binding(full));
   assert(std::strcmp(regions[0].name, "A") == 0 && regions[0].line == 10);
   assert(std::strcmp(regions[1].name, "B") == 0 && regions[1].line == 20);
   if (configured || empty_file) assert(unlink(path) == 0);
@@ -664,6 +686,7 @@ static void check_otter(int report)
   tuner *runtime = tuner_attach(&control);
   assert(runtime && std::strcmp(tuner_name(runtime), "otter") == 0);
   assert(mock && mock->maximum <= full && clock_reads == 0);
+  check_binding(expected_auxiliary_binding(full));
   assert(otter_created == 1 && j2025_created == 0 && j2025_b_created == 0);
   assert(control.context && control.callbacks.step_start && control.callbacks.step_sample);
   assert(!control.callbacks.parallel_start && !control.callbacks.parallel_end);

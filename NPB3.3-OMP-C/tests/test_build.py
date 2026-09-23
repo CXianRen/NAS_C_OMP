@@ -61,7 +61,8 @@ with tempfile.TemporaryDirectory(prefix='sp-build-test-') as temporary:
         env.pop(name, None)
     env.pop('NPB_NITER', None)
     for name in tuple(env):
-        if name.startswith('OTTER_') or name in ('TUNER', 'OFFLINE_CONFIG'):
+        if (name.startswith('OTTER_') or name.startswith('PHAMS_AUX_')
+                or name in ('TUNER', 'OFFLINE_CONFIG')):
             env.pop(name)
 
     # Every mode compiles generated source copies and one complete static table.

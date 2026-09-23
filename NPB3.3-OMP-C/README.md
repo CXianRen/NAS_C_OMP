@@ -30,6 +30,9 @@ class. Unsupported pairs fail explicitly. Each pair owns
 tuners that require instrumentation. `REGION_TIME_REPORT` is read only by the
 framework. Application sources retain explicit initialization, timing windows,
 logical steps and final reports; OpenMP region hooks are generated during builds.
+For tuners that use HAMS binding, `PHAMS_AUX_NUM_THREADS` and
+`PHAMS_AUX_PROC_BIND=close|spread` select the fixed configuration applied before
+initialization and warmup; their defaults are the startup thread limit and `close`.
 
 BT/SP timestep loops, CG inverse-power iterations, FT transform iterations,
 LU SSOR iterations, MG multigrid iterations and UA timesteps each notify one

@@ -27,6 +27,7 @@ TARGETS = $(BUILD_DIR)/hams_binding_ut $(BUILD_DIR)/j2025_ut \
 RUN_OMP = env -u OMP_PLACES -u KMP_AFFINITY -u GOMP_CPU_AFFINITY \
 	-u TUNER -u OTTER_PIN_THREADS -u OTTER_PHYSICAL_CORES -u OTTER_MAX_THREADS \
 	-u OTTER_THRESHOLD_PERCENT -u OTTER_GOLDEN_DISTANCE -u OFFLINE_CONFIG \
+	-u PHAMS_AUX_NUM_THREADS -u PHAMS_AUX_PROC_BIND \
 	OMP_PROC_BIND=false OMP_DYNAMIC=false OMP_NUM_THREADS=$(THREADS)
 
 .PHONY: all test hams-test j2025-test j2025-b-test otter-test dummy-test offline-test tuner-test region-control-test automatic-region-test clean
@@ -105,8 +106,30 @@ offline-test: $(BUILD_DIR)/offline_ut
 tuner-test: $(BUILD_DIR)/tuner_runtime_ut
 	$(RUN_OMP) $< default
 	$(RUN_OMP) $< none
+	$(RUN_OMP) PHAMS_AUX_NUM_THREADS=invalid PHAMS_AUX_PROC_BIND=invalid $< none
 	$(RUN_OMP) $< dummy
 	$(RUN_OMP) $< dummy-report
+	$(RUN_OMP) PHAMS_AUX_NUM_THREADS=2 PHAMS_AUX_PROC_BIND=close $< dummy
+	$(RUN_OMP) PHAMS_AUX_NUM_THREADS=2 PHAMS_AUX_PROC_BIND=spread $< dummy
+	$(RUN_OMP) PHAMS_AUX_NUM_THREADS=3 PHAMS_AUX_PROC_BIND=spread $< dummy
+	@if $(RUN_OMP) PHAMS_AUX_NUM_THREADS=0 $< dummy >/dev/null 2>&1; then \
+		echo "PHAMS_AUX_NUM_THREADS=0 unexpectedly succeeded"; exit 1; \
+	else echo "tuner_runtime=invalid-aux-threads PASS"; fi
+	@if $(RUN_OMP) PHAMS_AUX_NUM_THREADS=-1 $< dummy >/dev/null 2>&1; then \
+		echo "PHAMS_AUX_NUM_THREADS=-1 unexpectedly succeeded"; exit 1; \
+	else echo "tuner_runtime=negative-aux-threads PASS"; fi
+	@if $(RUN_OMP) PHAMS_AUX_NUM_THREADS=999 $< dummy >/dev/null 2>&1; then \
+		echo "oversized PHAMS_AUX_NUM_THREADS unexpectedly succeeded"; exit 1; \
+	else echo "tuner_runtime=oversized-aux-threads PASS"; fi
+	@if $(RUN_OMP) PHAMS_AUX_NUM_THREADS=invalid $< dummy >/dev/null 2>&1; then \
+		echo "invalid PHAMS_AUX_NUM_THREADS unexpectedly succeeded"; exit 1; \
+	else echo "tuner_runtime=malformed-aux-threads PASS"; fi
+	@if $(RUN_OMP) PHAMS_AUX_NUM_THREADS=2tail $< dummy >/dev/null 2>&1; then \
+		echo "trailing PHAMS_AUX_NUM_THREADS unexpectedly succeeded"; exit 1; \
+	else echo "tuner_runtime=trailing-aux-threads PASS"; fi
+	@if $(RUN_OMP) PHAMS_AUX_PROC_BIND=invalid $< dummy >/dev/null 2>&1; then \
+		echo "invalid PHAMS_AUX_PROC_BIND unexpectedly succeeded"; exit 1; \
+	else echo "tuner_runtime=invalid-aux-bind PASS"; fi
 	$(RUN_OMP) OMP_NUM_THREADS=1 $< dummy
 	$(RUN_OMP) OMP_NUM_THREADS=3 $< dummy
 	$(RUN_OMP) OMP_NUM_THREADS=3 OMP_THREAD_LIMIT=2 $< dummy

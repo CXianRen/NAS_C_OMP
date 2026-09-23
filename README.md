@@ -24,6 +24,10 @@ region_control_init(control, region 表, region 数量)
 // framework 读取 REGION_TIME_REPORT，决定是否累计并输出 region 报告
 // 此时所有 region 的元数据已完整；任意 tuner 均可读取 control.regions[R]
 tuner = tuner_attach(control)                 // 按环境变量 TUNER 挂载 callback
+    if tuner 使用 HAMS 绑定:
+        apply_config(最大线程数, close)         // 先创建并绑定完整 hot team
+        apply_config(固定辅助配置)              // 配置初始化阶段，不 select/observe
+应用初始化 / warmup                           // 使用固定辅助配置
 iteration_start()                             // 正式总计时窗口
 
 for 每个 step:
@@ -72,6 +76,14 @@ HAMS.apply(cfg):
 tuner 样本排除配置选择、绑定和反馈开销，总窗口包含这些开销；关闭报告仍向 tuner 提供样本。
 
 `REGION_TIME_REPORT` 由 framework 在每次 `region_control_init` 时读取：`1`、`true`、`yes`、`on` 开启，未设置或其他值关闭。各 benchmark 不读取此变量、不传递报告开关；结束时由 framework 决定是否输出。`INSTRUMENT=0` 始终关闭 region 报告。
+
+### 辅助阶段线程配置
+
+使用 HAMS 手动绑定的 tuner 在 attach 时先创建并绑定启动线程上限大小的 OpenMP team，再为正式循环前的初始化和 warmup 应用一份固定配置。`PHAMS_AUX_NUM_THREADS` 指定辅助线程数，默认是启动线程上限；合法范围为 `[1, 启动线程上限]`。`PHAMS_AUX_PROC_BIND` 可取 `close`（默认）或 `spread`：`close` 选择前 N 个 CPU，`spread` 在启动 CPU 范围内等距选择 N 个 CPU。两步都使用普通 `hams_binding_cfg` 和 HAMS；配置相同时第二次 apply 由缓存直接返回。整个准备过程位于正式计时前，且不会调用 tuner 的 `select/observe` 或推进搜索状态。
+
+这两个变量只控制辅助阶段；进入正式 step 后仍完全由所选 tuner 决定配置。`TUNER=none` 以及不使用 HAMS 手动绑定的路径保持原行为。正式窗口后的验证沿用 tuner 最后应用的配置。
+
+当前最小实现沿用既有 Dummy/J2025 的 CPU 编号约定，要求可绑定 CPU 是从 0 开始的连续区间；它面向当前 LLVM/libomp 运行环境，不解析完整的 OpenMP places 语法。
 
 Dummy 保留上述挂载、选择、绑定、计时和反馈流程：
 
@@ -197,6 +209,7 @@ make -C lulesh CC=clang-18 CXX=clang++-18
 make -C rodina CC=clang-18 CXX=clang++-18
 env -u OMP_PLACES -u KMP_AFFINITY -u GOMP_CPU_AFFINITY \
     OMP_PROC_BIND=false OMP_DYNAMIC=false OMP_NUM_THREADS=8 \
+    PHAMS_AUX_NUM_THREADS=8 PHAMS_AUX_PROC_BIND=close \
     TUNER=otter REGION_TIME_REPORT=1 ./NPB3.3-OMP-C/bin/SP.S
 
 make -C example run TUNER=otter

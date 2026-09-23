@@ -75,6 +75,59 @@ static const tuner_operations otter_operations{
   std::exit(EXIT_FAILURE);
 }
 
+enum class auxiliary_binding { close, spread };
+
+/* Auxiliary OpenMP regions before the formal iteration use one fixed HAMS
+ * configuration.  Keep the accepted syntax deliberately small: this is a
+ * framework setting, not a second implementation of the OpenMP place grammar. */
+static int auxiliary_threads(int maximum)
+{
+  const char *value = std::getenv("PHAMS_AUX_NUM_THREADS");
+  if (!value || !*value) return maximum;
+  char *end = nullptr;
+  errno = 0;
+  long parsed = std::strtol(value, &end, 10);
+  if (errno || end == value || *end || parsed < 1 || parsed > maximum) {
+    char message[160];
+    std::snprintf(message, sizeof(message),
+                  "PHAMS_AUX_NUM_THREADS must be an integer in [1, %d]", maximum);
+    fail(message);
+  }
+  return static_cast<int>(parsed);
+}
+
+static auxiliary_binding auxiliary_binding_from_environment()
+{
+  const char *value = std::getenv("PHAMS_AUX_PROC_BIND");
+  if (!value || !*value || !strcasecmp(value, "close"))
+    return auxiliary_binding::close;
+  if (!strcasecmp(value, "spread")) return auxiliary_binding::spread;
+  fail("PHAMS_AUX_PROC_BIND must be close or spread");
+}
+
+/* Match the existing HAMS/J2025 mask convention: close takes the first T
+ * CPUs, while spread samples T CPUs evenly from the startup CPU range. */
+static hams_binding_cfg make_binding_config(int maximum, int threads,
+                                            auxiliary_binding placement)
+{
+  hams_binding_cfg cfg{};
+  cfg.thread_number = threads;
+  for (int tid = 0; tid < cfg.thread_number; ++tid) {
+    int cpu = placement == auxiliary_binding::close
+                  ? tid
+                  : tid * maximum / cfg.thread_number;
+    cfg.mask[cpu] = true;
+    cfg.tid_to_cpu[tid] = cpu;
+  }
+  return cfg;
+}
+
+static hams_binding_cfg make_auxiliary_config(int maximum)
+{
+  return make_binding_config(maximum, auxiliary_threads(maximum),
+                             auxiliary_binding_from_environment());
+}
+
 /* Otter 分支的选项解析规则：无效值回退默认值，合法数字截断到允许范围。 */
 static bool env_false(const char *name)
 {
@@ -237,6 +290,18 @@ tuner *tuner_attach_named(region_control *control, const char *name)
     options.verbose = env_int("OTTER_VERBOSE", 1, 0, 1);
     runtime->policy = otter_create(maximum, cpus.data(),
                                   static_cast<int>(cpus.size()), options);
+  }
+
+  /* Materialize and bind the LLVM OpenMP team before application
+   * initialization/warmup regions first-touch their data.  This is separate
+   * from policy selection and observation, so no tuner state advances. */
+  if (runtime->pin_threads) {
+    hams_binding_cfg auxiliary = make_auxiliary_config(status.max_threads);
+    hams_binding_cfg full = make_binding_config(status.max_threads,
+                                                status.max_threads,
+                                                auxiliary_binding::close);
+    hams_binding_apply(runtime->binding, &full);
+    hams_binding_apply(runtime->binding, &auxiliary);
   }
 
   static const region_control_callbacks region_callbacks{

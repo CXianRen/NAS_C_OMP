@@ -13,6 +13,8 @@ typedef struct tuner tuner;
  * Dummy 按 region 执行完整流程，始终使用初始满线程、连续绑定配置。
  * Offline 从 OFFLINE_CONFIG 加载 function:line 配置，缺项使用初始满线程配置。
  * J2025/J2025_B 按 region 调优；Otter 仅在 step_start 调整全步共享配置。
+ * 使用 HAMS 手动绑定的 tuner 会在返回前创建满线程 team，并应用
+ * PHAMS_AUX_NUM_THREADS / PHAMS_AUX_PROC_BIND 指定的辅助阶段配置。
  * 未知名称或启用时没有插桩会报错退出；每个 control 只挂载一个 tuner。 */
 tuner *tuner_attach(region_control *control);
 

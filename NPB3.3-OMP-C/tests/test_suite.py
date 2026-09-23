@@ -27,7 +27,7 @@ def main():
     root = Path(__file__).resolve().parents[1]
     env = dict(os.environ)
     for key in tuple(env):
-        if key.startswith('OTTER_') or key in (
+        if key.startswith('OTTER_') or key.startswith('PHAMS_AUX_') or key in (
             'OMP_PLACES', 'KMP_AFFINITY', 'GOMP_CPU_AFFINITY', 'OMP_THREAD_LIMIT',
             'TUNER', 'OFFLINE_CONFIG', 'REGION_TIME_REPORT', 'NPB_NITER',
         ):

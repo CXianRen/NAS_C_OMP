@@ -29,7 +29,7 @@ RUN_OMP = env -u OMP_PLACES -u KMP_AFFINITY -u GOMP_CPU_AFFINITY \
 	-u OTTER_THRESHOLD_PERCENT -u OTTER_GOLDEN_DISTANCE -u OFFLINE_CONFIG \
 	OMP_PROC_BIND=false OMP_DYNAMIC=false OMP_NUM_THREADS=$(THREADS)
 
-.PHONY: all test hams-test j2025-test j2025-b-test otter-test dummy-test offline-test tuner-test region-control-test automatic-region-test clean
+.PHONY: all test hams-test j2025-test j2025-b-test otter-test dummy-test offline-test tuner-test tuner-none-test region-control-test automatic-region-test clean
 
 all: $(TARGETS)
 
@@ -69,7 +69,9 @@ $(BUILD_DIR)/tuner_runtime_ut: tuner_runtime_ut.cpp $(TUNER_DIR)/tuner.cpp $(TUN
 	$(CXX) $(CPPFLAGS) $(HWLOC_CFLAGS) $(CXXFLAGS) -fopenmp -UNDEBUG tuner_runtime_ut.cpp \
 		$(TUNER_DIR)/tuner.cpp $(DUMMY)/dummy.cpp $(OFFLINE)/offline.cpp $(HAMS)/hams_binding.cpp \
 		$(BUILD_DIR)/region_control.o \
-		$(LDFLAGS) $(HWLOC_LIBS) -Wl,--wrap=omp_get_wtime -o $@
+		$(LDFLAGS) $(HWLOC_LIBS) -Wl,--wrap=omp_get_wtime \
+		-Wl,--wrap=omp_get_proc_bind -Wl,--wrap=omp_get_thread_limit \
+		-Wl,--wrap=getenv -Wl,--wrap=omp_set_num_threads -Wl,--wrap=omp_set_dynamic -o $@
 
 $(CONTROL_METADATA): region_control_ut.c $(CONTROL)/region_control.h $(CONTROL)/generate_regions.py Makefile | $(BUILD_DIR)
 	$(PYTHON) $(CONTROL)/generate_regions.py --clang "$(CLANG)" --output "$@" --depfile "$(@:.h=.d)" \
@@ -102,9 +104,15 @@ dummy-test: $(BUILD_DIR)/dummy_ut
 offline-test: $(BUILD_DIR)/offline_ut
 	$<
 
-tuner-test: $(BUILD_DIR)/tuner_runtime_ut
+tuner-none-test: $(BUILD_DIR)/tuner_runtime_ut
 	$(RUN_OMP) $< default
 	$(RUN_OMP) $< none
+	$(RUN_OMP) OMP_NUM_THREADS=2 OMP_PROC_BIND=spread OMP_PLACES=cores $< default
+	$(RUN_OMP) OMP_NUM_THREADS=2 OMP_PROC_BIND=spread OMP_PLACES=cores $< none
+	$(RUN_OMP) OMP_NUM_THREADS=2 OMP_PROC_BIND=close OMP_PLACES=cores $< default
+	$(RUN_OMP) OMP_NUM_THREADS=2 OMP_PROC_BIND=close OMP_PLACES=cores $< none
+
+tuner-test: $(BUILD_DIR)/tuner_runtime_ut tuner-none-test
 	$(RUN_OMP) $< dummy
 	$(RUN_OMP) $< dummy-report
 	$(RUN_OMP) OMP_NUM_THREADS=1 $< dummy

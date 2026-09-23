@@ -75,9 +75,12 @@ $(BUILD_DIR):
 	mkdir -p $@
 
 run test: $(TARGET)
-	env -u OMP_PLACES -u KMP_AFFINITY -u GOMP_CPU_AFFINITY \
-		OMP_PROC_BIND=false OMP_DYNAMIC=false OMP_NUM_THREADS=$(THREADS) \
-		TUNER="$(TUNER)" $(TARGET)
+	@case "$(TUNER)" in \
+		""|[Nn][Oo][Nn][Ee]) env TUNER="$(TUNER)" $(TARGET) ;; \
+		*) env -u OMP_PLACES -u KMP_AFFINITY -u GOMP_CPU_AFFINITY \
+			OMP_PROC_BIND=false OMP_DYNAMIC=false OMP_NUM_THREADS=$(THREADS) \
+			TUNER="$(TUNER)" $(TARGET) ;; \
+	esac
 
 clean:
 	$(RM) -r $(BUILD_DIR)

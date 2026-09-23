@@ -1,0 +1,232 @@
+{
+  "baseline": {
+    "path": "scan_001.log",
+    "seconds": 27.726897001,
+    "time_source": "iteration total",
+    "benchmark": "SP",
+    "class": "C",
+    "size": "162x162x162",
+    "iterations": "400",
+    "verification": "SUCCESSFUL",
+    "startup_max_threads": "32",
+    "final_threads": "32",
+    "compile_date": "11 Sep 2026",
+    "command": "env OMP_NUM_THREADS=32 OMP_PROC_BIND=spread OMP_PLACES=cores /cephyr/users/chenhon/Vera/TFP/install/NAS_3_3_C/original/SP.C",
+    "parents": {
+      "add:44": 0.739501953,
+      "ninvr:45": 0.50717926,
+      "pinvr:45": 0.515544415,
+      "compute_rhs:43": 8.677172661,
+      "txinvr:45": 0.772848368,
+      "tzetar:46": 1.165971756,
+      "x_solve:48": 4.704621077,
+      "y_solve:48": 5.00339818,
+      "z_solve:52": 5.639838696
+    },
+    "child_labels": [
+      "add:44",
+      "ninvr:45",
+      "pinvr:45",
+      "compute_rhs:50-78",
+      "compute_rhs:78",
+      "compute_rhs:92-182",
+      "compute_rhs:182",
+      "compute_rhs:276",
+      "compute_rhs:322-371",
+      "compute_rhs:371",
+      "compute_rhs:381-391",
+      "txinvr:45",
+      "tzetar:46",
+      "x_solve:48",
+      "y_solve:48",
+      "z_solve:52"
+    ],
+    "offline_configs": {}
+  },
+  "candidate": {
+    "path": "intel_c_global_32_spread_first_touch.log",
+    "seconds": 33.370447159,
+    "time_source": "iteration total",
+    "benchmark": "SP",
+    "class": "C",
+    "size": "162x162x162",
+    "iterations": "400",
+    "verification": "SUCCESSFUL",
+    "startup_max_threads": "64",
+    "final_threads": "32",
+    "compile_date": "23 Sep 2026",
+    "command": null,
+    "parents": {
+      "add:44": 1.130148888,
+      "ninvr:45": 0.668924093,
+      "pinvr:45": 0.675702572,
+      "compute_rhs:43": 12.586781502,
+      "txinvr:45": 1.094175577,
+      "tzetar:46": 1.568307638,
+      "x_solve:48": 4.903788328,
+      "y_solve:48": 5.214195013,
+      "z_solve:52": 5.525890589
+    },
+    "child_labels": [
+      "add:44",
+      "ninvr:45",
+      "pinvr:45",
+      "compute_rhs:50",
+      "compute_rhs:94",
+      "compute_rhs:280",
+      "compute_rhs:326",
+      "compute_rhs:387",
+      "txinvr:45",
+      "tzetar:46",
+      "x_solve:48",
+      "y_solve:48",
+      "z_solve:52"
+    ],
+    "offline_configs": {
+      "add:44": {
+        "threads": 32,
+        "mask": "0x5555555555555555"
+      },
+      "error_norm:52": {
+        "threads": 32,
+        "mask": "0x5555555555555555"
+      },
+      "rhs_norm:99": {
+        "threads": 32,
+        "mask": "0x5555555555555555"
+      },
+      "exact_rhs:45": {
+        "threads": 32,
+        "mask": "0x5555555555555555"
+      },
+      "initialize:46": {
+        "threads": 32,
+        "mask": "0x5555555555555555"
+      },
+      "ninvr:45": {
+        "threads": 32,
+        "mask": "0x5555555555555555"
+      },
+      "pinvr:45": {
+        "threads": 32,
+        "mask": "0x5555555555555555"
+      },
+      "compute_rhs:43": {
+        "threads": 32,
+        "mask": "0x5555555555555555"
+      },
+      "txinvr:45": {
+        "threads": 32,
+        "mask": "0x5555555555555555"
+      },
+      "tzetar:46": {
+        "threads": 32,
+        "mask": "0x5555555555555555"
+      },
+      "x_solve:48": {
+        "threads": 32,
+        "mask": "0x5555555555555555"
+      },
+      "y_solve:48": {
+        "threads": 32,
+        "mask": "0x5555555555555555"
+      },
+      "z_solve:52": {
+        "threads": 32,
+        "mask": "0x5555555555555555"
+      }
+    }
+  },
+  "delta_s": 5.643550158,
+  "change_percent": 20.354063268588835,
+  "decomposition": {
+    "baseline_parent_s": 27.726076366,
+    "candidate_parent_s": 33.3679142,
+    "parent_delta_s": 5.641837834,
+    "baseline_residual_s": 0.0008206350000001805,
+    "candidate_residual_s": 0.0025329589999998348,
+    "residual_delta_s": 0.0017123239999996542,
+    "parent_share_of_total_delta_percent": 99.96965874401644
+  },
+  "regions": [
+    {
+      "region": "compute_rhs:43",
+      "baseline_s": 8.677172661,
+      "candidate_s": 12.586781502,
+      "delta_s": 3.909608840999999,
+      "change_percent": 45.056252695903325,
+      "share_of_total_delta_percent": 69.27569936554816
+    },
+    {
+      "region": "tzetar:46",
+      "baseline_s": 1.165971756,
+      "candidate_s": 1.568307638,
+      "delta_s": 0.40233588200000003,
+      "change_percent": 34.506486107370165,
+      "share_of_total_delta_percent": 7.1291274239792095
+    },
+    {
+      "region": "add:44",
+      "baseline_s": 0.739501953,
+      "candidate_s": 1.130148888,
+      "delta_s": 0.3906469349999999,
+      "change_percent": 52.82567996138881,
+      "share_of_total_delta_percent": 6.9220069648223
+    },
+    {
+      "region": "txinvr:45",
+      "baseline_s": 0.772848368,
+      "candidate_s": 1.094175577,
+      "delta_s": 0.3213272089999999,
+      "change_percent": 41.577005568574855,
+      "share_of_total_delta_percent": 5.693706975289364
+    },
+    {
+      "region": "y_solve:48",
+      "baseline_s": 5.00339818,
+      "candidate_s": 5.214195013,
+      "delta_s": 0.21079683300000074,
+      "change_percent": 4.213073303712173,
+      "share_of_total_delta_percent": 3.7351813503630553
+    },
+    {
+      "region": "x_solve:48",
+      "baseline_s": 4.704621077,
+      "candidate_s": 4.903788328,
+      "delta_s": 0.19916725100000043,
+      "change_percent": 4.233438734815251,
+      "share_of_total_delta_percent": 3.5291127999929515
+    },
+    {
+      "region": "ninvr:45",
+      "baseline_s": 0.50717926,
+      "candidate_s": 0.668924093,
+      "delta_s": 0.16174483299999998,
+      "change_percent": 31.891058202971465,
+      "share_of_total_delta_percent": 2.866012146108403
+    },
+    {
+      "region": "pinvr:45",
+      "baseline_s": 0.515544415,
+      "candidate_s": 0.675702572,
+      "delta_s": 0.1601581569999999,
+      "change_percent": 31.065831059386007,
+      "share_of_total_delta_percent": 2.8378972901121133
+    },
+    {
+      "region": "z_solve:52",
+      "baseline_s": 5.639838696,
+      "candidate_s": 5.525890589,
+      "delta_s": -0.11394810699999969,
+      "change_percent": -2.0204142909409137,
+      "share_of_total_delta_percent": -2.0190855721991388
+    }
+  ],
+  "warnings": [
+    "单次日志对比只表示耗时差，不能证明因果或稳定性；不把差值直接称为纯 offline overhead。",
+    "启动最大线程数不同；该数值不是初始化实际 team size 的测量。",
+    "编译日期不同；没有同源码、同编译器和同 runtime 的控制证据。",
+    "for 子区间标签/分组不同，不逐项对齐子区间，也不将子区间与父区间相加。",
+    "total − 顶层合计是区间外残差，包含控制、串行工作和计时边界差异；不是纯 callback 成本。"
+  ]
+}

@@ -178,6 +178,8 @@ tuner *tuner_attach(region_control *control)
 
 tuner *tuner_attach_named(region_control *control, const char *name)
 {
+  // none keeps OpenMP environment settings authoritative. Return before any
+  // binding support query, topology discovery, allocation or callback setup.
   if (!name || !*name || !strcasecmp(name, "none")) return nullptr;
   const tuner_operations *operations = nullptr;
   if (!strcasecmp(name, "dummy")) operations = &dummy_operations;

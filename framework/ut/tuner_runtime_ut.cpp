@@ -19,6 +19,51 @@ static bool count_allocations;
 static unsigned allocations;
 static int clock_reads;
 static double clock_now;
+static int binding_support_reads;
+static int openmp_environment_reads;
+static int openmp_setting_writes;
+
+// Wrap framework calls only; the shared OpenMP runtime must still read its
+// own environment and apply the user's binding settings normally.
+extern "C" char *__real_getenv(const char *name);
+extern "C" void __real_omp_set_num_threads(int count);
+extern "C" void __real_omp_set_dynamic(int enabled);
+
+extern "C" char *__wrap_getenv(const char *name)
+{
+  if (!std::strncmp(name, "OMP_", 4) || !std::strncmp(name, "KMP_", 4) ||
+      !std::strncmp(name, "GOMP_", 5))
+    ++openmp_environment_reads;
+  return __real_getenv(name);
+}
+
+extern "C" void __wrap_omp_set_num_threads(int count)
+{
+  ++openmp_setting_writes;
+  __real_omp_set_num_threads(count);
+}
+
+extern "C" void __wrap_omp_set_dynamic(int enabled)
+{
+  ++openmp_setting_writes;
+  __real_omp_set_dynamic(enabled);
+}
+
+/* 直接统计 HAMS 初始化使用的支持性查询，避免仅检查绑定结果不变。 */
+extern "C" omp_proc_bind_t __real_omp_get_proc_bind(void);
+extern "C" int __real_omp_get_thread_limit(void);
+
+extern "C" omp_proc_bind_t __wrap_omp_get_proc_bind(void)
+{
+  ++binding_support_reads;
+  return __real_omp_get_proc_bind();
+}
+
+extern "C" int __wrap_omp_get_thread_limit(void)
+{
+  ++binding_support_reads;
+  return __real_omp_get_thread_limit();
+}
 
 static void set_report_environment(bool report)
 {
@@ -301,6 +346,9 @@ static void check_disabled(const char *mode)
                              {"B", -1, 0, "runtime_ut.c", 20, 0}};
     region_control control;
     set_report_environment(false);
+    int support_reads = binding_support_reads;
+    int environment_reads = openmp_environment_reads;
+    int setting_writes = openmp_setting_writes;
     region_control_init(&control, regions, 2);
     int reads = clock_reads;
     allocations = 0;
@@ -322,13 +370,16 @@ static void check_disabled(const char *mode)
     count_allocations = false;
     assert(allocations == 0 && !mock);
     assert(!j2025_created && !j2025_b_created && !otter_created && !destroyed);
+    assert(binding_support_reads == support_reads);
+    assert(openmp_environment_reads == environment_reads);
+    assert(openmp_setting_writes == setting_writes);
     assert(clock_reads == reads + 2);  // 只有应用总窗口读钟。
     assert(omp_get_dynamic() == initial_dynamic && omp_get_max_threads() == full);
     check_unregistered(control);
     capture_team(after);
     check_same_team(before, after);
   }
-  std::printf("tuner_runtime=%s PASS (no allocation, callbacks, affinity or OpenMP changes)\n",
+  std::printf("tuner_runtime=%s PASS (no allocation, callbacks, binding support queries, OpenMP environment reads, setters or affinity changes)\n",
               mode);
 }
 

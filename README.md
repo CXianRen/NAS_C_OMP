@@ -11,6 +11,20 @@
 | `j2025_b` | 每个 region 独立 | `PARALLEL_START` | 单个 region |
 | `otter` | 全局一份 | `step_start` | 整个 step，包含串行部分 |
 
+`TUNER` 未设置、为空或为 `none` 时，框架只识别 tuner 开关，不读取或校验
+`OMP_*`、`KMP_*`、`GOMP_*`；在创建 HAMS 前直接返回，不查询绑定支持或 CPU 拓扑，
+不调用线程数或 dynamic setter。线程数量与绑定由 OpenMP runtime 按用户环境变量决定。
+只有显式启用 tuner，才进入绑定支持检查和配置修改路径。
+这与保留 control layer 的 region/step hooks 是两件事：`REGION_TIME_REPORT=0` 关闭
+region 计时报告，`INSTRUMENT=0` 才在编译时移除 region hooks。
+
+```bash
+TUNER=none OMP_NUM_THREADS=32 OMP_PLACES=cores OMP_PROC_BIND=spread \
+    OMP_DYNAMIC=false REGION_TIME_REPORT=0 ./NPB3.3-OMP-C/bin/SP.C
+```
+
+单独比较 control layer 开销，使用 [overhead 工具的 none 路径](tools/binding_overhead/README.md)。
+
 ## 1. Framework
 
 ```text
@@ -199,6 +213,7 @@ env -u OMP_PLACES -u KMP_AFFINITY -u GOMP_CPU_AFFINITY \
     OMP_PROC_BIND=false OMP_DYNAMIC=false OMP_NUM_THREADS=8 \
     TUNER=otter REGION_TIME_REPORT=1 ./NPB3.3-OMP-C/bin/SP.S
 
+OMP_NUM_THREADS=32 OMP_PLACES=cores OMP_PROC_BIND=spread make -C example run TUNER=none
 make -C example run TUNER=otter
 OFFLINE_CONFIG=/path/to/regions.conf make -C example run TUNER=offline
 make -C framework/ut test
@@ -208,6 +223,9 @@ python3 lulesh/tests/test_automatic_build.py --cc clang-18 --cxx clang++-18
 python3 rodina/tests/test_instrumented_build.py --cc clang-18 --cxx clang++-18
 python3 example/test_build.py --cc clang-18 --cxx clang++-18
 ```
+
+`example` 的 `make run/test` 在未启用 tuner 时同样保留用户的 OpenMP 环境；
+此时用 `OMP_NUM_THREADS` 指定线程数，`THREADS` 仅用于启用 tuner 的运行路径。
 
 切换 `TUNER=none|dummy|offline|j2025|j2025_b|otter` 或 `OFFLINE_CONFIG` 无需重编译。Dummy、Offline、J2025 与 J2025_B 需要 `OMP_PROC_BIND=false`。`INSTRUMENT=0` 关闭 region hook，此构建仅允许 `TUNER=none`。
 Otter 默认打印搜索过程（step、配置、耗时 `time_us`、预热标记、搜索分支和状态转换），收敛后停止逐步打印；`OTTER_VERBOSE=0` 仅保留最终配置。过程日志不受 `REGION_TIME_REPORT` 控制，打印不计入 tuner 样本。
